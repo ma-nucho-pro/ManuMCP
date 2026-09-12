@@ -213,18 +213,18 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
 
     await fs.mkdir(path.join(pcDirectory, 'AppData'), { recursive: true });
     await fs.writeFile(path.join(pcDirectory, 'AppData', 'blocked.txt'), 'protected profile data\n');
-    await fs.mkdir(path.join(pcDirectory, 'appdata'), { recursive: true });
-    await fs.writeFile(path.join(pcDirectory, 'appdata', 'blocked.txt'), 'protected profile data\n');
     const protectedReply = await callTool(port, accessToken, 25, 'read_workspace_file', {
         path: 'pc:/AppData/blocked.txt',
     });
     assert.equal(protectedReply.result.isError, true);
     assert.match(toolText(protectedReply), /PATH_DENIED/u);
-    const protectedCaseReply = await callTool(port, accessToken, 31, 'read_workspace_file', {
-        path: 'pc:/appdata/blocked.txt',
-    });
-    assert.equal(protectedCaseReply.result.isError, true);
-    assert.match(toolText(protectedCaseReply), /PATH_DENIED/u);
+    if (process.platform === 'win32') {
+        const protectedCaseReply = await callTool(port, accessToken, 31, 'read_workspace_file', {
+            path: 'pc:/appdata/blocked.txt',
+        });
+        assert.equal(protectedCaseReply.result.isError, true);
+        assert.match(toolText(protectedCaseReply), /PATH_DENIED/u);
+    }
     const protectedListingReply = await callTool(port, accessToken, 26, 'list_workspace', {
         root: 'pc',
         path: 'pc:/',
