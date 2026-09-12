@@ -1,5 +1,11 @@
 # Changes
 
+## 1.3.0
+
+- Add confirmed Windows command execution, application launching, process management and file/folder opening.
+- Add screen capture, visible-window discovery/focus/close, cursor inspection, mouse control, Unicode typing and hotkeys.
+- Keep every interactive or state-changing operating-system action behind a signed one-time confirmation token.
+
 ## 1.2.0
 
 - Add `downloads:/` for the real Windows Downloads folder and `pc:/` for the complete Windows user profile.

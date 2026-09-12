@@ -123,6 +123,20 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         'create_workspace_file',
         'replace_workspace_text',
         'apply_workspace_patch',
+        'run_command',
+        'launch_application',
+        'open_item',
+        'list_processes',
+        'terminate_process',
+        'list_windows',
+        'focus_window',
+        'close_window',
+        'get_screen_info',
+        'capture_screen',
+        'get_cursor_position',
+        'control_mouse',
+        'type_text',
+        'press_hotkey',
     ]);
 
     const desktopAliasReply = await callTool(port, accessToken, 3, 'list_workspace', { root: 'desktop', path: 'desktop:/' });
@@ -139,6 +153,25 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     const pcReply = await callTool(port, accessToken, 5, 'list_workspace', { root: 'computer', path: 'computer:/' });
     assert.equal(pcReply.result.isError, undefined);
     assert.equal(JSON.parse(toolText(pcReply)).root, 'pc:/');
+
+    for (const [id, name, argumentsValue] of [
+        [40, 'run_command', { command: 'Write-Output preview-only', shell: 'powershell', cwd: 'workspace:/', timeoutMs: 1_000 }],
+        [41, 'launch_application', { executable: 'notepad.exe', cwd: 'workspace:/' }],
+        [42, 'open_item', { path: 'pc:/' }],
+        [43, 'terminate_process', { pid: 12_345, force: false }],
+        [44, 'focus_window', { handle: 12_345 }],
+        [45, 'close_window', { handle: 12_345 }],
+        [46, 'control_mouse', { action: 'move', x: 10, y: 20 }],
+        [47, 'type_text', { text: 'preview-only' }],
+        [48, 'press_hotkey', { keys: ['CTRL', 'L'] }],
+    ]) {
+        const previewReply = await callTool(port, accessToken, id, name, argumentsValue);
+        assert.equal(previewReply.result.isError, undefined, `${name} preview failed: ${toolText(previewReply)}`);
+        const preview = JSON.parse(toolText(previewReply));
+        assert.equal(preview.applied, false);
+        assert.equal(preview.requiresConfirmation, true);
+        assert.equal(typeof preview.confirmationToken, 'string');
+    }
 
     const directoryProposalReply = await callTool(port, accessToken, 6, 'create_workspace_directory', { root: 'desktop', path: 'desktop:/site' });
     const directoryProposal = JSON.parse(toolText(directoryProposalReply));
@@ -305,6 +338,95 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     const replay = await callTool(port, accessToken, 24, 'create_workspace_file', secondApplyArgs);
     assert.equal(replay.result.isError, true);
     assert.match(toolText(replay), /CONFIRMATION_INVALID/u);
+});
+
+test('Windows control tools reach the native desktop only through confirmed actions', { skip: process.platform !== 'win32' ? 'Windows-only native control test.' : false }, async (t) => {
+    const directory = await createTestDirectory('windows-control');
+    const workspaceDirectory = path.join(directory, 'Desktop');
+    const downloadsDirectory = path.join(directory, 'downloads');
+    const pcDirectory = path.join(directory, 'pc');
+    const accessToken = 'integration-token-for-windows-control-1234567890';
+    const child = spawn(process.execPath, [path.join(process.cwd(), 'dist', 'app', 'server.js')], {
+        cwd: process.cwd(),
+        env: {
+            ...process.env,
+            MANUMCP_WORKSPACE: workspaceDirectory,
+            MANUMCP_DOWNLOADS: downloadsDirectory,
+            MANUMCP_PC_ROOT: pcDirectory,
+            MANUMCP_LOCAL_TOKEN: accessToken,
+            MANUMCP_CONFIRMATION_KEY: 'windows-control-confirmation-key',
+            MANUMCP_PORT: '0',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    t.after(async () => {
+        if (child.exitCode === null) {
+            child.kill('SIGTERM');
+            await once(child, 'exit');
+        }
+        await fs.rm(directory, { recursive: true, force: true });
+    });
+
+    const port = await waitForStartup(child);
+    const processes = JSON.parse(toolText(await callTool(port, accessToken, 50, 'list_processes', { filter: 'node', maxEntries: 10 })));
+    assert.ok(Array.isArray(processes.processes));
+    const windows = JSON.parse(toolText(await callTool(port, accessToken, 51, 'list_windows', {})));
+    assert.ok(Array.isArray(windows.windows));
+    const screens = JSON.parse(toolText(await callTool(port, accessToken, 52, 'get_screen_info', {})));
+    assert.ok(Array.isArray(screens.screens));
+    assert.ok(screens.screens.length > 0);
+    const cursor = JSON.parse(toolText(await callTool(port, accessToken, 53, 'get_cursor_position', {})));
+    assert.equal(Number.isInteger(cursor.x), true);
+    assert.equal(Number.isInteger(cursor.y), true);
+
+    const capture = await callTool(port, accessToken, 54, 'capture_screen', { screenIndex: 0 });
+    const image = capture.result.content.find((item) => item.type === 'image');
+    assert.equal(image.mimeType, 'image/png');
+    assert.match(image.data, /^iVBOR/u);
+
+    const commandPreview = JSON.parse(toolText(await callTool(port, accessToken, 55, 'run_command', {
+        command: 'Write-Output ManuMCP_WINDOWS_CONTROL_TEST',
+        shell: 'powershell',
+        cwd: 'pc:/',
+        timeoutMs: 5_000,
+    })));
+    assert.equal(commandPreview.applied, false);
+    const commandApplied = JSON.parse(toolText(await callTool(port, accessToken, 56, 'run_command', {
+        command: 'Write-Output ManuMCP_WINDOWS_CONTROL_TEST',
+        shell: 'powershell',
+        cwd: 'pc:/',
+        timeoutMs: 5_000,
+        confirmationToken: commandPreview.confirmationToken,
+        confirmed: true,
+    })));
+    assert.equal(commandApplied.exitCode, 0);
+    assert.match(commandApplied.stdout, /ManuMCP_WINDOWS_CONTROL_TEST/u);
+
+    const launchPreview = JSON.parse(toolText(await callTool(port, accessToken, 57, 'launch_application', {
+        executable: 'cmd.exe',
+        arguments: ['/d', '/c', 'exit', '0'],
+        cwd: 'pc:/',
+    })));
+    assert.equal(launchPreview.applied, false);
+    const launchApplied = JSON.parse(toolText(await callTool(port, accessToken, 58, 'launch_application', {
+        executable: 'cmd.exe',
+        arguments: ['/d', '/c', 'exit', '0'],
+        cwd: 'pc:/',
+        confirmationToken: launchPreview.confirmationToken,
+        confirmed: true,
+    })));
+    assert.equal(launchApplied.ok, true);
+
+    const mousePreview = JSON.parse(toolText(await callTool(port, accessToken, 59, 'control_mouse', {
+        action: 'move',
+        x: cursor.x,
+        y: cursor.y,
+    })));
+    assert.equal(mousePreview.applied, false);
+    const typePreview = JSON.parse(toolText(await callTool(port, accessToken, 60, 'type_text', { text: 'native preview only' })));
+    assert.equal(typePreview.applied, false);
+    const hotkeyPreview = JSON.parse(toolText(await callTool(port, accessToken, 61, 'press_hotkey', { keys: ['CTRL', 'L'] })));
+    assert.equal(hotkeyPreview.applied, false);
 });
 
 test('ManuMCP also speaks MCP over stdio for a private tunnel client', async (t) => {

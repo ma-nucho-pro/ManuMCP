@@ -7,6 +7,7 @@ import { SafeReader } from "../services/safe-reader.js";
 import { SearchService } from "../services/search-service.js";
 import { Walker } from "../services/walker.js";
 import { RequestAdmission } from "../transports/request-admission.js";
+import { SystemControl } from "./system-control.js";
 export async function createServices(config) {
     const authorizer = await PathAuthorizer.create(config.access);
     const reader = new SafeReader();
@@ -18,6 +19,7 @@ export async function createServices(config) {
         walker: new Walker(authorizer),
         search: new SearchService(new Walker(authorizer), authorizer, reader),
         writer: new AtomicWriter(config.access, authorizer, reader, confirmations),
+        system: new SystemControl(config),
         confirmations,
         admission: new RequestAdmission({ maxActive: 4, maxQueued: 8, queueTimeoutMs: 2_000 }),
         usedConfirmationTokens: new Map(),

@@ -5,6 +5,7 @@ import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sd
 import { z } from "zod";
 import { asStructuredError, TunnelGPTError } from "../core/errors.js";
 import { runBounded, runConfirmed, type ManuMcpServices } from "./services.js";
+import { keyCodeFromName } from "./system-control.js";
 import type { ManuMcpConfig } from "./config.js";
 
 const MAX_PATH_CHARS = 1024;
@@ -12,6 +13,10 @@ const MAX_WRITE_BYTES = 512 * 1024;
 const MAX_READ_BYTES = 256 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const MAX_PATCH_CHARS = 1024 * 1024;
+const MAX_COMMAND_CHARS = 16 * 1024;
+const MAX_ARGUMENT_CHARS = 2048;
+const MAX_TYPED_TEXT_CHARS = 4096;
+const MAX_CONFIRMATION_SUMMARY_CHARS = 4096;
 const DESKTOP_COMPATIBILITY_ALIASES = new Set(["desktop", "escritorio", "workspace"]);
 const DOWNLOADS_ALIASES = new Set(["downloads", "descargas"]);
 const PC_ALIASES = new Set(["pc", "computer", "ordenador", "computer-profile"]);
@@ -45,6 +50,11 @@ const rootSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u)
 const confirmationSchema = z.string().max(8192).optional();
 const hashSchema = z.string().regex(/^[0-9a-f]{64}$/iu);
 
+type ToolContent =
+    | { type: "text"; text: string }
+    | { type: "image"; data: string; mimeType: "image/png" };
+type ToolResult = { content: ToolContent[] } | { isError: true; content: [{ type: "text"; text: string }] };
+
 function result(value: unknown): { content: [{ type: "text"; text: string }] } {
     return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] };
 }
@@ -57,10 +67,19 @@ function failure(error: unknown): { isError: true; content: [{ type: "text"; tex
 }
 
 async function guarded<T>(services: ManuMcpServices, extra: Extra, operation: () => Promise<T>): Promise<
-    { content: [{ type: "text"; text: string }] } | { isError: true; content: [{ type: "text"; text: string }] }
+    ToolResult
 > {
     try {
         return result(await runBounded(services, extra.signal, operation));
+    }
+    catch (error) {
+        return failure(error);
+    }
+}
+
+async function guardedContent(services: ManuMcpServices, extra: Extra, operation: () => Promise<ToolContent[]>): Promise<ToolResult> {
+    try {
+        return { content: await runBounded(services, extra.signal, operation) };
     }
     catch (error) {
         return failure(error);
@@ -188,10 +207,62 @@ function writeCall<T>(services: ManuMcpServices, extra: Extra, token: string | u
     return guarded(services, extra, () => runConfirmed(services, token, operation));
 }
 
+function assertControlProfile(services: ManuMcpServices): void {
+    if (services.config.profile !== "edit_safe")
+        throw new TunnelGPTError("PROFILE_READ_ONLY", "El control del ordenador está desactivado en el perfil read_only.");
+}
+
+async function controlCwd(services: ManuMcpServices, rawPath: string | undefined): Promise<string> {
+    const target = normalizedTarget(rawPath ?? `${services.config.pcAlias}:/`, undefined, services.config);
+    const authorized = await services.authorizer.authorizeExisting(target.path, {
+        rootAlias: target.rootAlias ?? services.config.pcAlias,
+        kind: "directory",
+    });
+    return authorized.absolutePath;
+}
+
+async function existingControlTarget(services: ManuMcpServices, rawPath: string): Promise<string> {
+    const target = normalizedTarget(rawPath, undefined, services.config);
+    const authorized = await services.authorizer.authorizeExisting(target.path, {
+        rootAlias: target.rootAlias ?? services.config.pcAlias,
+        kind: "any",
+    });
+    return authorized.absolutePath;
+}
+
+function controlAction<T>(services: ManuMcpServices, extra: Extra, operation: string, digestInput: unknown, summary: string, token: string | undefined, confirmed: boolean, action: () => Promise<T>) {
+    if ((token === undefined && confirmed) || (token !== undefined && !confirmed)) {
+        return guarded(services, extra, async () => {
+            throw new TunnelGPTError("CONFIRMATION_INVALID", "Usa confirmed=true junto con el confirmationToken, o no envíes ninguno para solicitar una vista previa.");
+        });
+    }
+    return guarded(services, extra, async () => {
+        assertControlProfile(services);
+        const digest = services.confirmations.queryDigest(digestInput);
+        if (token === undefined) {
+            return {
+                ok: true,
+                applied: false,
+                requiresConfirmation: true,
+                confirmationToken: services.confirmations.encode(operation, digest, { summary: summary.slice(0, MAX_CONFIRMATION_SUMMARY_CHARS) }, services.config.access.limits.confirmationTtlMs),
+                summary,
+            };
+        }
+        return runConfirmed(services, token, async () => {
+            services.confirmations.decode(token, operation, digest);
+            return action();
+        });
+    });
+}
+
+function keyCodes(values: readonly string[]): number[] {
+    return values.map((value) => keyCodeFromName(value));
+}
+
 export function registerManuMcpTools(server: McpServer, services: ManuMcpServices): void {
     server.registerTool("get_device_health", {
         title: "ManuMCP health",
-        description: "Comprueba si ManuMCP está activo y muestra los destinos autorizados: Escritorio, Descargas y la raíz configurada de pc:/.",
+        description: "Comprueba si ManuMCP está activo y muestra los destinos autorizados y el modo de control de Windows.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, _extra) => result({
@@ -416,4 +487,228 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmed: args.confirmed,
         }, extra.signal);
     }));
+
+    server.registerTool("run_command", {
+        title: "Run a Windows command",
+        description: "Ejecuta un comando de PowerShell o CMD en el PC. Puede leer o modificar cualquier recurso al que tenga acceso tu usuario. La primera llamada solo muestra el comando, directorio y token; nunca se ejecuta sin confirmed=true y ese confirmationToken.",
+        inputSchema: {
+            command: z.string().min(1).max(MAX_COMMAND_CHARS).refine((value) => !/[\0\r\n]/u.test(value), "El comando no puede contener NUL ni saltos de línea."),
+            shell: z.enum(["powershell", "cmd"]).default("powershell"),
+            cwd: pathSchema.optional(),
+            timeoutMs: z.number().int().min(100).max(120_000).default(30_000),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => {
+        try {
+            const cwd = await controlCwd(services, args.cwd);
+            return controlAction(services, extra, "run_command", {
+                command: args.command,
+                shell: args.shell,
+                cwd,
+                timeoutMs: args.timeoutMs,
+            }, `Ejecutar ${args.shell} en ${cwd}: ${args.command}`, args.confirmationToken, args.confirmed, () => services.system.executeCommand({
+                command: args.command,
+                shell: args.shell,
+                cwd,
+                timeoutMs: args.timeoutMs,
+                signal: extra.signal,
+            }));
+        }
+        catch (error) {
+            return failure(error);
+        }
+    });
+
+    server.registerTool("launch_application", {
+        title: "Launch a Windows application",
+        description: "Abre un ejecutable o aplicación de Windows con argumentos separados. La acción requiere una vista previa y confirmación explícita; no interpreta argumentos como shell.",
+        inputSchema: {
+            executable: requiredPathSchema,
+            arguments: z.array(z.string().max(MAX_ARGUMENT_CHARS).refine((value) => !/[\0\r\n]/u.test(value), "Los argumentos no pueden contener NUL ni saltos de línea.")).max(50).default([]),
+            cwd: pathSchema.optional(),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => {
+        try {
+            const cwd = await controlCwd(services, args.cwd);
+            return controlAction(services, extra, "launch_application", {
+                executable: args.executable,
+                arguments: args.arguments,
+                cwd,
+            }, `Abrir ${args.executable}${args.arguments.length === 0 ? "" : ` con ${args.arguments.length} argumento(s)`} en ${cwd}.`, args.confirmationToken, args.confirmed, () => services.system.launchApplication({
+                executable: args.executable,
+                arguments: args.arguments,
+                cwd,
+            }));
+        }
+        catch (error) {
+            return failure(error);
+        }
+    });
+
+    server.registerTool("open_item", {
+        title: "Open a file or folder",
+        description: "Abre un archivo o carpeta existente con la aplicación asociada de Windows. Solo acepta destinos que ManuMCP pueda autorizar y requiere confirmación.",
+        inputSchema: {
+            path: requiredPathSchema,
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => {
+        try {
+            const target = await existingControlTarget(services, args.path);
+            return controlAction(services, extra, "open_item", { target }, `Abrir ${target} con la aplicación asociada de Windows.`, args.confirmationToken, args.confirmed, () => services.system.openItem({ target, signal: extra.signal }));
+        }
+        catch (error) {
+            return failure(error);
+        }
+    });
+
+    server.registerTool("list_processes", {
+        title: "List Windows processes",
+        description: "Consulta los procesos activos de Windows y devuelve PID, nombre, sesión y memoria. No modifica nada.",
+        inputSchema: {
+            filter: z.string().max(256).optional(),
+            maxEntries: z.number().int().min(1).max(500).default(100),
+        },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (args, extra) => guarded(services, extra, () => services.system.listProcesses(args.filter, args.maxEntries)));
+
+    server.registerTool("terminate_process", {
+        title: "Terminate a Windows process",
+        description: "Termina un proceso de Windows por PID, opcionalmente con fuerza y sus procesos descendientes. Nunca se ejecuta sin vista previa y confirmación explícita.",
+        inputSchema: {
+            pid: z.number().int().min(1).max(4_000_000),
+            force: z.boolean().default(false),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => controlAction(services, extra, "terminate_process", {
+        pid: args.pid,
+        force: args.force,
+    }, `Terminar el proceso PID ${args.pid}${args.force ? " con fuerza" : ""}.`, args.confirmationToken, args.confirmed, () => services.system.terminateProcess(args.pid, args.force)));
+
+    server.registerTool("list_windows", {
+        title: "List visible Windows",
+        description: "Lista ventanas visibles con título, identificador y PID, e indica cuál está activa. No modifica nada.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (_args, extra) => guarded(services, extra, () => services.system.listWindows()));
+
+    server.registerTool("focus_window", {
+        title: "Focus a Windows window",
+        description: "Activa una ventana visible por su identificador. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        inputSchema: {
+            handle: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => controlAction(services, extra, "focus_window", {
+        handle: args.handle,
+    }, `Activar la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.focusWindow(args.handle)));
+
+    server.registerTool("close_window", {
+        title: "Close a Windows window",
+        description: "Solicita el cierre normal de una ventana por su identificador. La aplicación puede pedir guardar cambios; no fuerza el cierre. Requiere confirmación explícita.",
+        inputSchema: {
+            handle: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => controlAction(services, extra, "close_window", {
+        handle: args.handle,
+    }, `Solicitar el cierre normal de la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.closeWindow(args.handle)));
+
+    server.registerTool("get_screen_info", {
+        title: "List Windows screens",
+        description: "Consulta las pantallas y sus coordenadas para poder dirigir acciones de interfaz. No modifica nada.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (_args, extra) => guarded(services, extra, () => services.system.getScreenInfo()));
+
+    server.registerTool("capture_screen", {
+        title: "Capture the Windows screen",
+        description: "Toma una captura PNG de la pantalla primaria, de una pantalla concreta o de todas. La imagen puede contener información sensible; úsalo solo cuando lo pidas explícitamente.",
+        inputSchema: {
+            screenIndex: z.number().int().min(0).max(16).optional(),
+            allScreens: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (args, extra) => guardedContent(services, extra, async () => {
+        const capture = await services.system.captureScreen(args.screenIndex, args.allScreens);
+        return [
+            { type: "image", data: capture.data, mimeType: capture.mimeType },
+            { type: "text", text: JSON.stringify({ ok: true, width: capture.width, height: capture.height, screen: capture.screen }, null, 2) },
+        ];
+    }));
+
+    server.registerTool("get_cursor_position", {
+        title: "Get mouse position",
+        description: "Devuelve la posición actual del cursor en coordenadas de pantalla. No modifica nada.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (_args, extra) => guarded(services, extra, () => services.system.getCursorPosition()));
+
+    server.registerTool("control_mouse", {
+        title: "Control the Windows mouse",
+        description: "Mueve el cursor, hace clic o desplaza la rueda en coordenadas de pantalla. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        inputSchema: {
+            action: z.enum(["move", "click", "scroll"]),
+            x: z.number().int().min(-20_000).max(20_000).optional(),
+            y: z.number().int().min(-20_000).max(20_000).optional(),
+            button: z.enum(["left", "right", "middle"]).optional(),
+            clicks: z.number().int().min(1).max(3).default(1),
+            delta: z.number().int().min(-120_000).max(120_000).optional(),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => controlAction(services, extra, "control_mouse", {
+        action: args.action,
+        x: args.x,
+        y: args.y,
+        button: args.button,
+        clicks: args.clicks,
+        delta: args.delta,
+    }, `Acción de ratón ${args.action} en (${args.x ?? "?"}, ${args.y ?? "?"}).`, args.confirmationToken, args.confirmed, () => services.system.controlMouse(args)));
+
+    server.registerTool("type_text", {
+        title: "Type text into the active Windows window",
+        description: "Escribe texto Unicode en la ventana activa mediante la entrada de teclado de Windows. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        inputSchema: {
+            text: z.string().max(MAX_TYPED_TEXT_CHARS).refine((value) => !value.includes("\u0000"), "El texto no puede contener caracteres NUL."),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => controlAction(services, extra, "type_text", {
+        text: args.text,
+    }, `Escribir ${[...args.text].length} carácter(es) en la ventana activa.`, args.confirmationToken, args.confirmed, () => services.system.typeText(args.text)));
+
+    server.registerTool("press_hotkey", {
+        title: "Press a Windows hotkey",
+        description: "Envía una combinación de teclas a la ventana activa. Usa nombres como CTRL, ALT, SHIFT, WIN, ENTER, ESC, TAB, flechas, F1-F12 o letras/números. Requiere confirmación.",
+        inputSchema: {
+            keys: z.array(z.string().min(1).max(20)).min(1).max(6),
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    }, async (args, extra) => {
+        try {
+            const codes = keyCodes(args.keys);
+            return controlAction(services, extra, "press_hotkey", { keys: args.keys, codes }, `Pulsar la combinación ${args.keys.join("+")} en la ventana activa.`, args.confirmationToken, args.confirmed, () => services.system.hotkey(codes));
+        }
+        catch (error) {
+            return failure(error);
+        }
+    });
 }

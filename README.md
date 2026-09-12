@@ -1,8 +1,8 @@
 # ManuMCP
 
-ManuMCP es un agente MCP local para conectar ChatGPT con tus carpetas de Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. La raíz `pc:/` también se puede ampliar deliberadamente a una unidad como `C:\` al instalar, manteniendo las exclusiones de seguridad. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC.
+ManuMCP es un agente MCP local para conectar ChatGPT con tu PC Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. La raíz `pc:/` también se puede ampliar deliberadamente a una unidad como `C:\` al instalar. Además de archivos de texto, expone comandos, procesos y control interactivo de Windows mediante acciones confirmadas, manteniendo el proceso en tu PC.
 
-La base de seguridad es deliberadamente pequeña: raíces explícitas, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer el disco del sistema fuera de las raíces autorizadas.
+La base de seguridad separa el acceso a archivos del control del sistema: las herramientas de archivos mantienen raíces, límites, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases; las herramientas de control requieren una vista previa y un token firmado de un solo uso. ManuMCP actúa con los permisos del usuario de Windows y no eleva UAC ni obtiene privilegios de administrador por sí mismo.
 
 ## Qué resuelve y qué no
 
@@ -21,7 +21,7 @@ ManuMCP --stdio en tu PC
 
 Cerrar Codex no detiene este flujo. En Windows, la instalación registra una tarea programada de usuario para arrancar el agente al iniciar sesión. El túnel privado se configura aparte porque necesita asociarse a una cuenta y workspace de OpenAI.
 
-No se debe confundir “trabajar en mi ordenador” con control total de la interfaz. La versión incluida controla, de forma acotada, archivos de texto dentro de las tres raíces autorizadas; `pc:/` cubre cualquier carpeta de la raíz configurada, que por defecto es el perfil del usuario e incluye Documentos, Escritorio y Descargas. Si se configura `C:\`, cubre las carpetas normales de esa unidad, pero sigue bloqueando credenciales, datos de sesión, AppData y directorios del sistema. Esa frontera evita convertir un enlace de ChatGPT en una puerta para ejecutar malware o exfiltrar credenciales.
+La versión actual cubre dos capas. Para archivos, `pc:/` cubre cualquier carpeta de la raíz configurada, que por defecto es el perfil del usuario e incluye Documentos, Escritorio y Descargas; si se configura `C:\`, cubre las carpetas normales de esa unidad y mantiene bloqueadas las rutas sensibles en las herramientas de archivos. Para el control del PC, Windows permite ejecutar comandos confirmados, abrir aplicaciones o archivos, inspeccionar y terminar procesos, listar y activar ventanas, tomar capturas y enviar ratón/teclado. El proceso conserva los permisos de tu usuario: una operación que Windows reserve a un administrador seguirá requiriendo autorización de Windows.
 
 ## Herramientas MCP
 
@@ -35,6 +35,20 @@ No se debe confundir “trabajar en mi ordenador” con control total de la inte
 | `create_workspace_file` | Propone y luego crea un archivo de texto | Sí, con confirmación |
 | `replace_workspace_text` | Propone un reemplazo de líneas usando un hash de precondición | Sí, con confirmación |
 | `apply_workspace_patch` | Propone y luego aplica un parche unificado | Sí, con confirmación |
+| `run_command` | Ejecuta PowerShell o CMD en un directorio elegido | Sí, con confirmación |
+| `launch_application` | Abre un ejecutable sin interpretar sus argumentos como shell | Sí, con confirmación |
+| `open_item` | Abre un archivo o carpeta con la aplicación asociada | Sí, con confirmación |
+| `list_processes` | Lista procesos y PID activos | No |
+| `terminate_process` | Termina un proceso por PID, opcionalmente con fuerza | Sí, con confirmación |
+| `list_windows` | Lista ventanas visibles, título, PID e identifica la activa | No |
+| `focus_window` | Activa una ventana por identificador | Sí, con confirmación |
+| `close_window` | Solicita el cierre normal de una ventana | Sí, con confirmación |
+| `get_screen_info` | Lista pantallas y coordenadas | No |
+| `capture_screen` | Devuelve una captura PNG de una o todas las pantallas | No |
+| `get_cursor_position` | Consulta la posición actual del cursor | No |
+| `control_mouse` | Mueve, hace clic o desplaza el ratón | Sí, con confirmación |
+| `type_text` | Escribe Unicode en la ventana activa | Sí, con confirmación |
+| `press_hotkey` | Envía una combinación de teclas a la ventana activa | Sí, con confirmación |
 
 Las herramientas de escritura nunca aplican el primer pedido directamente. Primero devuelven una vista previa y un token de corta duración. La aplicación requiere repetir los argumentos, el token y `confirmed: true`; además, el servidor consume cada token una sola vez y vuelve a comprobar el archivo antes de escribir.
 
@@ -75,7 +89,7 @@ Para ejecutarlo de forma visible durante una prueba:
 .\scripts\start-windows.ps1 -Foreground
 ```
 
-La instalación predeterminada usa el Escritorio, Descargas y `%USERPROFILE%`. Si necesitas cambiar alguna raíz, puedes pasarla explícitamente; el túnel reutilizará esa configuración guardada. Para autorizar deliberadamente la unidad del sistema como raíz amplia de archivos, usa `-PcRoot "C:\"`; esta opción no habilita shell ni control de ventanas y las exclusiones de seguridad siguen activas:
+La instalación predeterminada usa el Escritorio, Descargas y `%USERPROFILE%`. Si necesitas cambiar alguna raíz, puedes pasarla explícitamente; el túnel reutilizará esa configuración guardada. Para autorizar deliberadamente la unidad del sistema como raíz amplia de archivos, usa `-PcRoot "C:\"`; las herramientas de control de Windows actúan con los permisos del usuario y las acciones mutantes siguen exigiendo confirmación:
 
 ```powershell
 .\scripts\install-windows.ps1 -PcRoot "C:\"
@@ -163,7 +177,9 @@ El script arranca o reutiliza el agente local y muestra la URL HTTPS resultante 
 - Se bloquean `.mcpignore`, credenciales conocidas, claves privadas, tokens, `.env`, `AppData`, colmenas de registro del perfil (`NTUSER.*`/`UsrClass.dat*`), `node_modules`, `.git/objects`, `dist`, `build`, `.next`, `coverage` y otros patrones de riesgo.
 - El perfil por defecto es `edit_safe`; se puede usar `MANUMCP_PROFILE=read_only` para exponer únicamente lectura.
 - Los tamaños de lectura/escritura, líneas, profundidad, concurrencia y tiempo de operación son finitos.
-- No hay `exec`, shell, PowerShell remoto, descarga de URLs, apertura de programas, control de navegador ni control de teclado/ratón. El acceso a `pc:/` permite archivos y carpetas de texto autorizados de la raíz configurada, no manejar ventanas ni aplicaciones.
+- `run_command` ejecuta PowerShell o CMD únicamente después de una vista previa y confirmación de un solo uso; no eleva privilegios, no instala un servicio de administrador y limita tiempo/salida.
+- `launch_application`, `open_item`, `list_processes`, `terminate_process`, `list_windows`, `focus_window`, `close_window`, `capture_screen`, `control_mouse`, `type_text` y `press_hotkey` permiten el control de Windows descrito arriba. Las operaciones que modifican estado requieren confirmación; las consultas de procesos, ventanas, pantalla y cursor son de lectura.
+- El acceso de archivos conserva el bloqueo de `.mcpignore`, credenciales, `AppData`, directorios del sistema y otros patrones de riesgo; el shell confirmado puede ser capaz de acceder a un recurso que tu usuario de Windows tenga permitido, por lo que debes revisar cada vista previa.
 - El ordenador debe estar encendido y despierto; “instalado” no significa que funcione cuando está apagado o sin conexión.
 - La documentación actual de OpenAI indica que las apps MCP están disponibles solo en la web, no en móvil. Por tanto, esta implementación no puede cumplir una conexión MCP desde la app móvil; úsala desde ChatGPT web. La compatibilidad completa con acciones de escritura también depende del plan y del workspace: OpenAI la documenta para Business y Enterprise/Edu, mientras que Pro queda limitado a lectura/obtención en este flujo. Consulta la disponibilidad vigente en tu cuenta antes de publicar.
 
@@ -178,7 +194,7 @@ node scripts/verify-package.mjs
 npm audit --audit-level=low
 ```
 
-`npm run check` cubre el núcleo, la autenticación HTTP, el flujo de confirmación de escrituras, el bloqueo de traversal/secretos y el transporte stdio. La prueba del socket Unix del proyecto original se conserva en plataformas POSIX y se omite en Windows porque ese ejemplo no es el transporte usado por ManuMCP.
+`npm run check` cubre el núcleo, la autenticación HTTP, el flujo de confirmación de escrituras y acciones de control, el bloqueo de traversal/secretos y el transporte stdio. Las pruebas nativas de pantalla/procesos se ejecutan en Windows; la prueba del socket Unix del proyecto original se omite en Windows porque ese ejemplo no es el transporte usado por ManuMCP.
 
 ## Origen y licencia
 

@@ -6,6 +6,7 @@ import { SearchService } from "../services/search-service.js";
 import { Walker } from "../services/walker.js";
 import { RequestAdmission } from "../transports/request-admission.js";
 import type { ManuMcpConfig } from "./config.js";
+import { SystemControl } from "./system-control.js";
 export interface ManuMcpServices {
     readonly config: ManuMcpConfig;
     readonly authorizer: PathAuthorizer;
@@ -13,6 +14,7 @@ export interface ManuMcpServices {
     readonly walker: Walker;
     readonly search: SearchService;
     readonly writer: AtomicWriter;
+    readonly system: SystemControl;
     readonly confirmations: SignedTokenCodec;
     readonly admission: RequestAdmission;
     readonly usedConfirmationTokens: Map<string, number>;

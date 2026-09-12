@@ -82,7 +82,7 @@ function healthPayload(config) {
         node: process.version,
         pid: process.pid,
         startedAt,
-        note: "workspace:/ y desktop:/ apuntan al Escritorio real; downloads:/ apunta a Descargas; pc:/ cubre la raíz configurada del PC (por defecto, el perfil de usuario). No hay shell ni control de teclado, ratón o ventanas.",
+        note: "workspace:/ y desktop:/ apuntan al Escritorio real; downloads:/ apunta a Descargas; pc:/ cubre la raíz configurada del PC. El control de comandos, procesos y ventanas está disponible en Windows y exige confirmación explícita para cada acción.",
     };
 }
 async function handleMcpRequest(request, response, services) {
