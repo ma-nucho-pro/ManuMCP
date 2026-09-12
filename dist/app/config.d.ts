@@ -5,6 +5,10 @@ export interface ManuMcpConfig {
     readonly mode: "http" | "stdio";
     readonly workspacePath: string;
     readonly workspaceAlias: "workspace";
+    readonly downloadsPath: string;
+    readonly downloadsAlias: "downloads";
+    readonly pcPath: string;
+    readonly pcAlias: "pc";
     readonly profile: Profile;
     readonly port: number;
     readonly operationTimeoutMs: number;

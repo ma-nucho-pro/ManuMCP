@@ -104,6 +104,10 @@ export class PathAuthorizer {
         if (rawSegments.some((segment) => segment === "..")) {
             throw new TunnelGPTError("PATH_TRAVERSAL", "Parent traversal segments are denied.");
         }
+        const windowsPathSegments = WINDOWS_DRIVE.test(pathPart) ? rawSegments.slice(1) : rawSegments;
+        if (process.platform === "win32" && windowsPathSegments.some((segment) => segment.includes(":") || /[. ]$/u.test(segment))) {
+            throw new TunnelGPTError("SPECIAL_FILE_DENIED", "Windows alternate data streams and normalized trailing names are denied.");
+        }
         if (path.isAbsolute(normalizedSeparators) || WINDOWS_DRIVE.test(pathPart)) {
             throw new TunnelGPTError("PATH_OUTSIDE_ROOT", "Absolute paths are denied; use an authorized root alias.");
         }

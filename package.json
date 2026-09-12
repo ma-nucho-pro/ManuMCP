@@ -1,6 +1,6 @@
 {
   "name": "manumcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Secure local MCP agent for ChatGPT: bounded workspace files, confirmed edits and HTTP/stdio transports.",
   "license": "MIT",
   "type": "module",
@@ -33,7 +33,8 @@
     "start": "node dist/app/server.js",
     "start:stdio": "node dist/app/server.js --stdio",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "verify-package": "node scripts/verify-package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

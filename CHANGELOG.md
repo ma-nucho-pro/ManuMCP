@@ -1,5 +1,12 @@
 # Changes
 
+## 1.2.0
+
+- Add `downloads:/` for the real Windows Downloads folder and `pc:/` for the complete Windows user profile.
+- Accept natural aliases (`descargas`, `escritorio`, `ordenador`) and absolute Windows paths that resolve inside an authorized root.
+- Keep default bare paths on the Desktop while routing `Documents/...` and `Downloads/...` to their natural roots.
+- Extend health output, installation messages and integration coverage to all three roots.
+
 ## 1.1.0
 
 - Point the default Windows `workspace:/` root at the user's real Desktop so ChatGPT file operations affect the visible Desktop.

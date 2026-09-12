@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$Workspace
+    [string]$Workspace,
+    [string]$Downloads,
+    [string]$PcRoot
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,15 +53,33 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
         $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
     }
 }
+if ([string]::IsNullOrWhiteSpace($Downloads)) {
+    $Downloads = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads"
+}
+if ([string]::IsNullOrWhiteSpace($PcRoot)) {
+    $PcRoot = [Environment]::GetFolderPath("UserProfile")
+}
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
+$resolvedDownloads = [IO.Path]::GetFullPath($Downloads)
+$resolvedPcRoot = [IO.Path]::GetFullPath($PcRoot)
 New-Item -ItemType Directory -Path $resolvedWorkspace -Force | Out-Null
+New-Item -ItemType Directory -Path $resolvedDownloads, $resolvedPcRoot -Force | Out-Null
+$rootsConfiguration = [ordered]@{
+    workspace = $resolvedWorkspace
+    downloads = $resolvedDownloads
+    pcRoot = $resolvedPcRoot
+} | ConvertTo-Json -Compress
+$rootsConfigPath = Join-Path $appDataDirectory "roots.json"
+[IO.File]::WriteAllText($rootsConfigPath, $rootsConfiguration, [Text.UTF8Encoding]::new($false))
 
 $taskName = "ManuMCP Agent"
 $startScript = Join-Path $projectRoot "scripts\start-windows.ps1"
 $quotedScript = '"' + $startScript + '"'
 $quotedWorkspace = '"' + $resolvedWorkspace + '"'
+$quotedDownloads = '"' + $resolvedDownloads + '"'
+$quotedPcRoot = '"' + $resolvedPcRoot + '"'
 $quotedNode = '"' + $node + '"'
-$action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $quotedScript -Workspace $quotedWorkspace -NodePath $quotedNode"
+$action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $quotedScript -Workspace $quotedWorkspace -Downloads $quotedDownloads -PcRoot $quotedPcRoot -NodePath $quotedNode"
 $userId = "$env:USERDOMAIN\$env:USERNAME"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
 $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
@@ -80,7 +100,7 @@ if ($null -ne $existingTask -and $existingTask.State -eq "Running") {
         Start-Sleep -Milliseconds 250
     }
 }
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "ManuMCP local MCP agent; only the configured workspace is exposed." -Force | Out-Null
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "ManuMCP local MCP agent; Desktop, Downloads and the configured user profile roots are exposed." -Force | Out-Null
 
 Start-ScheduledTask -TaskName $taskName
 $healthUri = "http://127.0.0.1:8787/healthz"
@@ -101,7 +121,9 @@ if (-not $ready) {
 }
 
 Write-Output "ManuMCP instalado como tarea '$taskName'."
-Write-Output "Workspace autorizado: $resolvedWorkspace"
+Write-Output "Escritorio autorizado: $resolvedWorkspace"
+Write-Output "Descargas autorizadas: $resolvedDownloads"
+Write-Output "Perfil de usuario autorizado: $resolvedPcRoot"
 Write-Output "Endpoint local: http://127.0.0.1:8787/mcp"
 Write-Output "Modo seguro recomendado para ChatGPT: túnel privado por stdio."
 Write-Output "Logs: $(Join-Path $appDataDirectory 'logs\agent.log')"

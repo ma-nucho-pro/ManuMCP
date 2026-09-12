@@ -27,13 +27,35 @@ $entryPoint = Join-Path $projectRoot "dist\app\server.js"
 if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
     throw "No existe $entryPoint. Ejecuta scripts\install-windows.ps1 primero."
 }
+$userProfile = [Environment]::GetFolderPath("UserProfile")
+$rootsConfigPath = Join-Path ([Environment]::GetFolderPath("ApplicationData")) "ManuMCP\roots.json"
+$rootsConfig = $null
+if (Test-Path -LiteralPath $rootsConfigPath -PathType Leaf) {
+    try {
+        $rootsConfig = Get-Content -LiteralPath $rootsConfigPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "La configuración de raíces de ManuMCP no contiene JSON válido: $rootsConfigPath"
+    }
+}
 if ([string]::IsNullOrWhiteSpace($Workspace)) {
-    $Workspace = [Environment]::GetFolderPath("Desktop")
+    $Workspace = [string]$rootsConfig.workspace
     if ([string]::IsNullOrWhiteSpace($Workspace)) {
-        $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+        $Workspace = [Environment]::GetFolderPath("Desktop")
+        if ([string]::IsNullOrWhiteSpace($Workspace)) {
+            $Workspace = Join-Path $userProfile "Desktop"
+        }
     }
 }
 $env:MANUMCP_WORKSPACE = [IO.Path]::GetFullPath($Workspace)
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_DOWNLOADS)) {
+    $configuredDownloads = [string]$rootsConfig.downloads
+    $env:MANUMCP_DOWNLOADS = if ([string]::IsNullOrWhiteSpace($configuredDownloads)) { Join-Path $userProfile "Downloads" } else { $configuredDownloads }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PC_ROOT)) {
+    $configuredPcRoot = [string]$rootsConfig.pcRoot
+    $env:MANUMCP_PC_ROOT = if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) { $userProfile } else { $configuredPcRoot }
+}
 $applicationData = [Environment]::GetFolderPath("ApplicationData")
 $stdioWrapperPath = Join-Path $applicationData "ManuMCP\stdio-entrypoint.ps1"
 if (Test-Path -LiteralPath $stdioWrapperPath -PathType Leaf) {

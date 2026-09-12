@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Workspace,
+    [string]$Downloads,
+    [string]$PcRoot,
     [string]$NodePath,
     [ValidateRange(0, 65535)]
     [int]$Port = 8787,
@@ -41,10 +43,20 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
         $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
     }
 }
+if ([string]::IsNullOrWhiteSpace($Downloads)) {
+    $Downloads = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads"
+}
+if ([string]::IsNullOrWhiteSpace($PcRoot)) {
+    $PcRoot = [Environment]::GetFolderPath("UserProfile")
+}
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
-New-Item -ItemType Directory -Path $resolvedWorkspace -Force | Out-Null
+$resolvedDownloads = [IO.Path]::GetFullPath($Downloads)
+$resolvedPcRoot = [IO.Path]::GetFullPath($PcRoot)
+New-Item -ItemType Directory -Path $resolvedWorkspace, $resolvedDownloads, $resolvedPcRoot -Force | Out-Null
 
 $env:MANUMCP_WORKSPACE = $resolvedWorkspace
+$env:MANUMCP_DOWNLOADS = $resolvedDownloads
+$env:MANUMCP_PC_ROOT = $resolvedPcRoot
 $env:MANUMCP_LOCAL_TOKEN_FILE = $tokenPath
 $env:MANUMCP_PORT = [string]$Port
 if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PROFILE)) {

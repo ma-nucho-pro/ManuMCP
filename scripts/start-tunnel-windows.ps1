@@ -14,13 +14,39 @@ param(
 $ErrorActionPreference = "Stop"
 
 # The stdio child inherits this value. Keep the default aligned with the
-# Windows agent so the OpenAI tunnel exposes the user's actual Desktop too.
-if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
-    $desktopPath = [Environment]::GetFolderPath("Desktop")
-    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-        $desktopPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+# Windows agent so the OpenAI tunnel exposes the user's actual roots too.
+$userProfile = [Environment]::GetFolderPath("UserProfile")
+$appDataDirectory = Join-Path ([Environment]::GetFolderPath("ApplicationData")) "ManuMCP"
+$rootsConfigPath = Join-Path $appDataDirectory "roots.json"
+$rootsConfig = $null
+if (Test-Path -LiteralPath $rootsConfigPath -PathType Leaf) {
+    try {
+        $rootsConfig = Get-Content -LiteralPath $rootsConfigPath -Raw | ConvertFrom-Json
     }
-    $env:MANUMCP_WORKSPACE = $desktopPath
+    catch {
+        throw "La configuración de raíces de ManuMCP no contiene JSON válido: $rootsConfigPath"
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
+    $configuredWorkspace = [string]$rootsConfig.workspace
+    if (-not [string]::IsNullOrWhiteSpace($configuredWorkspace)) {
+        $env:MANUMCP_WORKSPACE = $configuredWorkspace
+    }
+    $desktopPath = [Environment]::GetFolderPath("Desktop")
+    if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
+        if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+            $desktopPath = Join-Path $userProfile "Desktop"
+        }
+        $env:MANUMCP_WORKSPACE = $desktopPath
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_DOWNLOADS)) {
+    $configuredDownloads = [string]$rootsConfig.downloads
+    $env:MANUMCP_DOWNLOADS = if ([string]::IsNullOrWhiteSpace($configuredDownloads)) { Join-Path $userProfile "Downloads" } else { $configuredDownloads }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PC_ROOT)) {
+    $configuredPcRoot = [string]$rootsConfig.pcRoot
+    $env:MANUMCP_PC_ROOT = if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) { $userProfile } else { $configuredPcRoot }
 }
 
 if (-not (Test-Path -LiteralPath $ClientPath -PathType Leaf)) {

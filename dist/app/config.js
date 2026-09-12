@@ -4,10 +4,25 @@ import os from "node:os";
 import path from "node:path";
 const DEFAULT_PORT = 8787;
 const DEFAULT_OPERATION_TIMEOUT_MS = 30_000;
-// On Windows the default exposed directory is the user's real Desktop. The
-// environment override remains available for a narrower project directory.
+// On Windows the default roots are the user's real Desktop, Downloads and
+// profile. The environment overrides remain available for narrower roots.
 const DEFAULT_WORKSPACE_NAME = "Desktop";
+const DEFAULT_DOWNLOADS_NAME = "Downloads";
 const MAX_PORT = 65_535;
+const PROTECTED_ROOT_SEGMENTS = new Set([
+    ".aws",
+    ".config",
+    ".docker",
+    ".git",
+    ".gnupg",
+    ".kube",
+    ".ssh",
+    "appdata",
+    "program files",
+    "program files (x86)",
+    "programdata",
+    "windows",
+]);
 function env(name) {
     const value = process.env[name]?.trim();
     return value === undefined || value.length === 0 ? undefined : value;
@@ -26,13 +41,38 @@ function profileFromEnvironment() {
         throw new Error("MANUMCP_PROFILE debe ser read_only o edit_safe.");
     return value;
 }
-function workspaceFromEnvironment() {
-    const configured = env("MANUMCP_WORKSPACE");
-    const workspace = configured ?? path.join(os.homedir(), DEFAULT_WORKSPACE_NAME);
-    const resolved = path.resolve(workspace);
+function resolvedPath(configured, fallback) {
+    const resolved = path.resolve(configured ?? fallback);
     if (!path.isAbsolute(resolved))
-        throw new Error("MANUMCP_WORKSPACE debe resolver a una ruta absoluta.");
+        throw new Error("La ruta autorizada debe resolver a una ruta absoluta.");
     return resolved;
+}
+function assertSafeRoot(name, value) {
+    const segments = value.split(/[\\/]+/u).filter((segment) => segment.length > 0);
+    if (segments.some((segment) => PROTECTED_ROOT_SEGMENTS.has(segment.toLowerCase()))) {
+        throw new Error(`${name} no puede apuntar a una carpeta protegida del sistema o de credenciales.`);
+    }
+    return value;
+}
+function samePath(left, right) {
+    const normalizedLeft = path.normalize(left);
+    const normalizedRight = path.normalize(right);
+    return process.platform === "win32"
+        ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+        : normalizedLeft === normalizedRight;
+}
+function workspaceFromEnvironment() {
+    return assertSafeRoot("MANUMCP_WORKSPACE", resolvedPath(env("MANUMCP_WORKSPACE"), path.join(os.homedir(), DEFAULT_WORKSPACE_NAME)));
+}
+function downloadsFromEnvironment() {
+    return assertSafeRoot("MANUMCP_DOWNLOADS", resolvedPath(env("MANUMCP_DOWNLOADS"), path.join(os.homedir(), DEFAULT_DOWNLOADS_NAME)));
+}
+function pcRootFromEnvironment() {
+    // This is the whole Windows user profile by default. It covers Desktop,
+    // Downloads, Documents and other user-owned folders without exposing
+    // Windows, Program Files or other users by accident. A deliberate
+    // MANUMCP_PC_ROOT override can choose a different authorized directory.
+    return assertSafeRoot("MANUMCP_PC_ROOT", resolvedPath(env("MANUMCP_PC_ROOT"), os.homedir()));
 }
 async function loadLocalToken() {
     const direct = env("MANUMCP_LOCAL_TOKEN");
@@ -62,7 +102,14 @@ function confirmationKeyFromEnvironment() {
 }
 export async function loadConfig(mode) {
     const workspacePath = workspaceFromEnvironment();
+    const downloadsPath = downloadsFromEnvironment();
+    const pcPath = pcRootFromEnvironment();
+    if (samePath(workspacePath, downloadsPath) || samePath(workspacePath, pcPath) || samePath(downloadsPath, pcPath)) {
+        throw new Error("Las raíces de Escritorio, Descargas y pc:/ deben ser directorios distintos.");
+    }
     await fs.mkdir(workspacePath, { recursive: true });
+    await fs.mkdir(downloadsPath, { recursive: true });
+    await fs.mkdir(pcPath, { recursive: true });
     const profile = profileFromEnvironment();
     const port = positiveInteger(env("MANUMCP_PORT"), DEFAULT_PORT, MAX_PORT, true);
     const operationTimeoutMs = positiveInteger(env("MANUMCP_OPERATION_TIMEOUT_MS"), DEFAULT_OPERATION_TIMEOUT_MS, 120_000);
@@ -73,12 +120,38 @@ export async function loadConfig(mode) {
     const configDirectory = path.join(os.homedir(), ".manumcp");
     const access = {
         profile,
-        allowedRoots: [{ alias: "workspace", path: workspacePath }],
+        allowedRoots: [
+            { alias: "workspace", path: workspacePath },
+            { alias: "downloads", path: downloadsPath },
+            { alias: "pc", path: pcPath },
+        ],
         additionalDenyPatterns: [
             "**/.manumcp/**",
             "**/.manumcp-*",
             "**/*.env",
             "**/*.env.*",
+            "**/AppData",
+            "**/AppData/**",
+            "**/NTUSER.*",
+            "**/UsrClass.dat*",
+            "**/.aws",
+            "**/.aws/**",
+            "**/.config",
+            "**/.config/**",
+            "**/.docker",
+            "**/.docker/**",
+            "**/.git",
+            "**/.git/**",
+            "**/.gnupg",
+            "**/.gnupg/**",
+            "**/.kube",
+            "**/.kube/**",
+            "**/.npmrc",
+            "**/.pypirc",
+            "**/.ssh",
+            "**/.ssh/**",
+            "**/.codex/**",
+            "**/.local/state/tunnel-client/**",
         ],
         rejectAllSymlinks: true,
         rejectHardLinks: true,
@@ -94,10 +167,14 @@ export async function loadConfig(mode) {
     };
     return {
         name: "ManuMCP",
-        version: "1.1.0",
+        version: "1.2.0",
         mode,
         workspacePath,
         workspaceAlias: "workspace",
+        downloadsPath,
+        downloadsAlias: "downloads",
+        pcPath,
+        pcAlias: "pc",
         profile,
         port,
         operationTimeoutMs,

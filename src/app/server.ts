@@ -81,11 +81,16 @@ function healthPayload(config: ManuMcpConfig): Record<string, unknown> {
         mode: config.mode,
         profile: config.profile,
         workspace: `${config.workspaceAlias}:/`,
+        authorizedRoots: [
+            `${config.workspaceAlias}:/ (Escritorio)`,
+            `${config.downloadsAlias}:/ (Descargas)`,
+            `${config.pcAlias}:/ (perfil de usuario de Windows)`,
+        ],
         platform: process.platform,
         node: process.version,
         pid: process.pid,
         startedAt,
-        note: "Por defecto workspace:/ es el Escritorio real de Windows. Solo se expone ese directorio autorizado; no hay shell ni control de teclado, ratón o ventanas.",
+        note: "workspace:/ y desktop:/ apuntan al Escritorio real; downloads:/ apunta a Descargas; pc:/ cubre el perfil de usuario de Windows. No hay shell ni control de teclado, ratón o ventanas.",
     };
 }
 
@@ -177,7 +182,7 @@ async function startHttp(config: ManuMcpConfig, services: ManuMcpServices): Prom
     const address = server.address();
     const port = typeof address === "object" && address !== null ? address.port : config.port;
     console.log(`ManuMCP listo en http://127.0.0.1:${port}/mcp`);
-    console.log(`Workspace autorizado: ${config.workspaceAlias}:/ | perfil: ${config.profile}`);
+    console.log(`Raíces autorizadas: ${config.workspaceAlias}:/, ${config.downloadsAlias}:/, ${config.pcAlias}:/ | perfil: ${config.profile}`);
 
     const shutdown = (): void => {
         services.admission.close();
@@ -191,7 +196,7 @@ async function startStdio(config: ManuMcpConfig, services: ManuMcpServices): Pro
     const mcpServer = createMcpServer(services);
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
-    console.error(`ManuMCP stdio listo | ${config.workspaceAlias}:/ | perfil: ${config.profile}`);
+    console.error(`ManuMCP stdio listo | raíces: ${config.workspaceAlias}:/, ${config.downloadsAlias}:/, ${config.pcAlias}:/ | perfil: ${config.profile}`);
     const shutdown = (): void => {
         services.admission.close();
         void mcpServer.close().finally(() => process.exit(0));

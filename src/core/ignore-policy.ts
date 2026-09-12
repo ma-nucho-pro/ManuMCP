@@ -95,7 +95,11 @@ export class IgnorePolicy {
         }
         const normalized = normalizeRelativePath(relativePath);
         const candidates = [normalized, `/${normalized}`];
-        return [...DEFAULT_DENY_PATTERNS, ...this.#additionalPatterns].some((pattern) => candidates.some((candidate) => matchesGlob(candidate.replace(/^\//, ""), pattern)));
+        const caseSensitive = process.platform !== "win32";
+        return [...DEFAULT_DENY_PATTERNS, ...this.#additionalPatterns].some((pattern) => candidates.some((candidate) => {
+            const value = candidate.replace(/^\//, "");
+            return matchesGlob(caseSensitive ? value : value.toLowerCase(), caseSensitive ? pattern : pattern.toLowerCase());
+        }));
     }
     public async isIgnored(root: CanonicalRoot, relativePath: string, isDirectory: boolean): Promise<boolean> {
         const normalized = normalizeRelativePath(relativePath);

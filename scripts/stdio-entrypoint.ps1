@@ -21,12 +21,38 @@ if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
 }
 
 $node = (Get-Command node -ErrorAction Stop).Source
+$userProfile = [Environment]::GetFolderPath("UserProfile")
+$rootsConfigPath = Join-Path $appDataDirectory "roots.json"
+$rootsConfig = $null
+if (Test-Path -LiteralPath $rootsConfigPath -PathType Leaf) {
+    try {
+        $rootsConfig = Get-Content -LiteralPath $rootsConfigPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "La configuración de raíces de ManuMCP no contiene JSON válido: $rootsConfigPath"
+    }
+}
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
-    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-        $desktopPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+    $configuredWorkspace = [string]$rootsConfig.workspace
+    if (-not [string]::IsNullOrWhiteSpace($configuredWorkspace)) {
+        $env:MANUMCP_WORKSPACE = $configuredWorkspace
     }
-    $env:MANUMCP_WORKSPACE = $desktopPath
+    elseif ([string]::IsNullOrWhiteSpace($desktopPath)) {
+        $desktopPath = Join-Path $userProfile "Desktop"
+        $env:MANUMCP_WORKSPACE = $desktopPath
+    }
+    else {
+        $env:MANUMCP_WORKSPACE = $desktopPath
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_DOWNLOADS)) {
+    $configuredDownloads = [string]$rootsConfig.downloads
+    $env:MANUMCP_DOWNLOADS = if ([string]::IsNullOrWhiteSpace($configuredDownloads)) { Join-Path $userProfile "Downloads" } else { $configuredDownloads }
+}
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PC_ROOT)) {
+    $configuredPcRoot = [string]$rootsConfig.pcRoot
+    $env:MANUMCP_PC_ROOT = if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) { $userProfile } else { $configuredPcRoot }
 }
 & $node $entryPoint --stdio
 exit $LASTEXITCODE
