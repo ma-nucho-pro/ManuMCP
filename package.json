@@ -1,0 +1,64 @@
+{
+  "name": "manumcp",
+  "version": "1.0.0",
+  "description": "Secure local MCP agent for ChatGPT: bounded workspace files, confirmed edits and HTTP/stdio transports.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "manumcp": "./dist/app/server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/app/server.js",
+    "start:stdio": "node dist/app/server.js --stdio",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.11",
+    "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ma-nucho-pro/ManuMCP.git"
+  },
+  "homepage": "https://github.com/ma-nucho-pro/ManuMCP#readme",
+  "bugs": {
+    "url": "https://github.com/ma-nucho-pro/ManuMCP/issues"
+  },
+  "author": "ManuMCP contributors",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "filesystem",
+    "local-first",
+    "typescript",
+    "tunnelgpt"
+  ]
+}
