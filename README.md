@@ -89,7 +89,14 @@ El comando MCP que debe ejecutar el túnel es el transporte stdio de ManuMCP:
 node C:\ruta\a\ManuMCP\dist\app\server.js --stdio
 ```
 
-Usa el comando exacto y las opciones de autenticación que muestre la versión instalada de `tunnel-client`; no pongas la runtime API key dentro de este repositorio. El agente stdio no abre un servidor HTTP público y no necesita el token local.
+En Windows puedes preparar y ejecutar el cliente con el helper incluido. Primero define la runtime key solo en la sesión actual y sustituye el `tunnel_id` real:
+
+```powershell
+$env:CONTROL_PLANE_API_KEY = "sk-..."
+.\scripts\run-openai-tunnel.ps1 -TunnelId "tunnel_..."
+```
+
+El helper ejecuta `tunnel-client init --sample sample_mcp_stdio_local`, `doctor` y `run` con el comando stdio de ManuMCP. Descarga `tunnel-client` desde Platform tunnel settings o su release oficial; no pongas la runtime API key dentro de este repositorio ni en una tarea programada sin un almacén de secretos. El agente stdio no abre un servidor HTTP público y no necesita el token local.
 
 Una vez que el túnel esté creado y asociado al workspace correcto:
 
