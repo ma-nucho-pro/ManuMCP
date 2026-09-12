@@ -46,7 +46,10 @@ if (-not (Test-Path -LiteralPath $tokenPath -PathType Leaf)) {
     [IO.File]::WriteAllText($tokenPath, $token, [Text.UTF8Encoding]::new($false))
 }
 if ([string]::IsNullOrWhiteSpace($Workspace)) {
-    $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "ManuMCP-Workspace"
+    $Workspace = [Environment]::GetFolderPath("Desktop")
+    if ([string]::IsNullOrWhiteSpace($Workspace)) {
+        $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+    }
 }
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
 New-Item -ItemType Directory -Path $resolvedWorkspace -Force | Out-Null

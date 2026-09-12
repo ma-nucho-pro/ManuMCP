@@ -13,6 +13,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# The stdio child inherits this value. Keep the default aligned with the
+# Windows agent so the OpenAI tunnel exposes the user's actual Desktop too.
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
+    $desktopPath = [Environment]::GetFolderPath("Desktop")
+    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+        $desktopPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+    }
+    $env:MANUMCP_WORKSPACE = $desktopPath
+}
+
 if (-not (Test-Path -LiteralPath $ClientPath -PathType Leaf)) {
     throw "No se encontró tunnel-client: $ClientPath"
 }

@@ -28,7 +28,10 @@ if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
     throw "No existe $entryPoint. Ejecuta scripts\install-windows.ps1 primero."
 }
 if ([string]::IsNullOrWhiteSpace($Workspace)) {
-    $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "ManuMCP-Workspace"
+    $Workspace = [Environment]::GetFolderPath("Desktop")
+    if ([string]::IsNullOrWhiteSpace($Workspace)) {
+        $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+    }
 }
 $env:MANUMCP_WORKSPACE = [IO.Path]::GetFullPath($Workspace)
 $applicationData = [Environment]::GetFolderPath("ApplicationData")

@@ -1,8 +1,8 @@
 # ManuMCP
 
-ManuMCP es un agente MCP local para conectar ChatGPT con un workspace concreto de tu ordenador. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC y sin depender de que Codex esté abierto.
+ManuMCP es un agente MCP local para conectar ChatGPT con un directorio concreto de tu ordenador. En Windows, la instalación predeterminada autoriza el Escritorio real. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC y sin depender de que Codex esté abierto.
 
-La base de seguridad es deliberadamente pequeña: un solo workspace autorizado, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer todo el disco.
+La base de seguridad es deliberadamente pequeña: un solo directorio autorizado, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer todo el disco.
 
 ## Qué resuelve y qué no
 
@@ -15,12 +15,12 @@ ChatGPT web o la superficie compatible de tu cuenta
 ManuMCP --stdio en tu PC
         │
         ▼
-%USERPROFILE%\ManuMCP-Workspace
+%USERPROFILE%\Desktop
 ```
 
 Cerrar Codex no detiene este flujo. En Windows, la instalación registra una tarea programada de usuario para arrancar el agente al iniciar sesión. El túnel privado se configura aparte porque necesita asociarse a una cuenta y workspace de OpenAI.
 
-No se debe confundir “controlar mi ordenador” con control total del escritorio. La versión incluida controla el contenido del workspace autorizado. Esa frontera evita convertir un enlace de ChatGPT en una puerta para ejecutar malware o exfiltrar credenciales.
+No se debe confundir “trabajar en mi ordenador” con control total de la interfaz. La versión incluida controla, de forma acotada, el contenido del directorio autorizado; por defecto es el Escritorio de Windows. Esa frontera evita convertir un enlace de ChatGPT en una puerta para ejecutar malware o exfiltrar credenciales.
 
 ## Herramientas MCP
 
@@ -58,14 +58,14 @@ Set-ExecutionPolicy -Scope Process Bypass
 El instalador:
 
 1. instala exactamente las dependencias del lockfile y compila `dist`;
-2. crea `%USERPROFILE%\ManuMCP-Workspace` si no existe;
+2. crea `%USERPROFILE%\Desktop` si no existe y lo usa como el `workspace:/` que verá ChatGPT;
 3. genera, una sola vez, el token local en `%APPDATA%\ManuMCP\local-token.txt`;
 4. registra la tarea de usuario `ManuMCP Agent` y la inicia;
 5. deja los logs en `%APPDATA%\ManuMCP\logs\agent.log`.
 
 La tarea usa el PowerShell del sistema y la instalación de Node.js detectada, no el runtime de Codex. También puede iniciar el agente con batería, no tiene límite de duración y está configurada para reintentarlo si el proceso termina.
 
-El endpoint HTTP local queda en `http://127.0.0.1:8787/mcp` y exige el token Bearer. Solo escucha en loopback. El token no se guarda en el repositorio ni se muestra en los logs.
+El endpoint HTTP local queda en `http://127.0.0.1:8787/mcp` y exige el token Bearer. Solo escucha en loopback. El token no se guarda en el repositorio ni se muestra en los logs. El túnel privado usa el transporte stdio y mantiene la misma autorización del Escritorio.
 
 Para ejecutarlo de forma visible durante una prueba:
 
@@ -146,12 +146,13 @@ El script arranca o reutiliza el agente local y muestra la URL HTTPS resultante 
 
 ## Límites importantes
 
-- El workspace por defecto es `%USERPROFILE%\ManuMCP-Workspace`; se puede cambiar con `MANUMCP_WORKSPACE` o el parámetro del script.
+- El directorio autorizado por defecto es `%USERPROFILE%\Desktop` (el Escritorio real de Windows); se puede cambiar a un directorio más estrecho con `MANUMCP_WORKSPACE` o el parámetro `-Workspace` del script.
 - Las rutas se expresan como `workspace:/carpeta/archivo.txt`; no se aceptan rutas absolutas, UNC, `..`, URI, dispositivos ni alias ajenos.
+- En la configuración predeterminada, `workspace:/` corresponde a `C:\Users\<usuario>\Desktop`; por ejemplo, `workspace:/hola mundo` crea una carpeta visible en el Escritorio después de la confirmación.
 - Se bloquean `.mcpignore`, credenciales conocidas, claves privadas, tokens, `.env`, `node_modules`, `.git/objects`, `dist`, `build`, `.next`, `coverage` y otros patrones de riesgo.
 - El perfil por defecto es `edit_safe`; se puede usar `MANUMCP_PROFILE=read_only` para exponer únicamente lectura.
 - Los tamaños de lectura/escritura, líneas, profundidad, concurrencia y tiempo de operación son finitos.
-- No hay `exec`, shell, PowerShell remoto, descarga de URLs, apertura de programas, control de navegador ni control de teclado/ratón.
+- No hay `exec`, shell, PowerShell remoto, descarga de URLs, apertura de programas, control de navegador ni control de teclado/ratón. El acceso al Escritorio permite archivos y carpetas de texto autorizados, no manejar ventanas ni aplicaciones.
 - El ordenador debe estar encendido y despierto; “instalado” no significa que funcione cuando está apagado o sin conexión.
 - La documentación actual de OpenAI indica que las apps MCP están disponibles solo en la web, no en móvil. Por tanto, esta implementación no puede cumplir una conexión MCP desde la app móvil; úsala desde ChatGPT web. La compatibilidad completa con acciones de escritura también depende del plan y del workspace: OpenAI la documenta para Business y Enterprise/Edu, mientras que Pro queda limitado a lectura/obtención en este flujo. Consulta la disponibilidad vigente en tu cuenta antes de publicar.
 
@@ -170,6 +171,6 @@ npm audit --audit-level=low
 
 ## Origen y licencia
 
-ManuMCP parte del núcleo open source de [tunnelgpt-mcp-core](https://github.com/carlosrodera/tunnelgpt-mcp-core), conservando sus avisos MIT y sus primitivas de autorización, lectura segura, búsqueda y escritura atómica. La capa `src/app` añade el agente Windows, el endpoint MCP oficial por HTTP/stdio, la configuración de un workspace y los scripts de instalación.
+ManuMCP parte del núcleo open source de [tunnelgpt-mcp-core](https://github.com/carlosrodera/tunnelgpt-mcp-core), conservando sus avisos MIT y sus primitivas de autorización, lectura segura, búsqueda y escritura atómica. La capa `src/app` añade el agente Windows, el endpoint MCP oficial por HTTP/stdio, la configuración de un directorio autorizado (Escritorio por defecto) y los scripts de instalación.
 
 Este repositorio está bajo la licencia [MIT](LICENSE). ManuMCP no es un producto oficial de OpenAI y no concede por sí mismo acceso a la cuenta de ChatGPT.

@@ -1,6 +1,6 @@
 {
   "name": "manumcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Secure local MCP agent for ChatGPT: bounded workspace files, confirmed edits and HTTP/stdio transports.",
   "license": "MIT",
   "type": "module",

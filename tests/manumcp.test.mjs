@@ -110,17 +110,22 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         'apply_workspace_patch',
     ]);
 
-    const directoryProposalReply = await callTool(port, accessToken, 3, 'create_workspace_directory', { path: 'site' });
+    const desktopAliasReply = await callTool(port, accessToken, 3, 'list_workspace', { root: 'desktop', path: 'desktop:/' });
+    assert.equal(desktopAliasReply.result.isError, undefined);
+    assert.equal(JSON.parse(toolText(desktopAliasReply)).root, 'workspace:/');
+
+    const directoryProposalReply = await callTool(port, accessToken, 4, 'create_workspace_directory', { root: 'desktop', path: 'desktop:/site' });
     const directoryProposal = JSON.parse(toolText(directoryProposalReply));
     assert.equal(directoryProposal.applied, false);
-    const directoryApplied = await callTool(port, accessToken, 4, 'create_workspace_directory', {
-        path: 'site',
+    const directoryApplied = await callTool(port, accessToken, 5, 'create_workspace_directory', {
+        root: 'desktop',
+        path: 'desktop:/site',
         confirmationToken: directoryProposal.confirmationToken,
         confirmed: true,
     });
     assert.equal(JSON.parse(toolText(directoryApplied)).applied, true);
 
-    const proposal = await callTool(port, accessToken, 5, 'create_workspace_file', {
+    const proposal = await callTool(port, accessToken, 6, 'create_workspace_file', {
         path: 'site/index.html',
         content: '<h1>ManuMCP</h1>\n<p>local file</p>\n',
     });
@@ -129,7 +134,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(proposalData.requiresConfirmation, true);
     await assert.rejects(fs.access(path.join(directory, 'site', 'index.html')), { code: 'ENOENT' });
 
-    const applied = await callTool(port, accessToken, 6, 'create_workspace_file', {
+    const applied = await callTool(port, accessToken, 7, 'create_workspace_file', {
         path: 'site/index.html',
         content: '<h1>ManuMCP</h1>\n<p>local file</p>\n',
         confirmationToken: proposalData.confirmationToken,
@@ -138,24 +143,24 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(JSON.parse(toolText(applied)).applied, true);
     assert.equal(await fs.readFile(path.join(directory, 'site', 'index.html'), 'utf8'), '<h1>ManuMCP</h1>\n<p>local file</p>\n');
 
-    const read = await callTool(port, accessToken, 7, 'read_workspace_file', { path: 'site/index.html' });
+    const read = await callTool(port, accessToken, 8, 'read_workspace_file', { path: 'site/index.html' });
     const readData = JSON.parse(toolText(read));
     assert.equal(readData.text, '<h1>ManuMCP</h1>\n<p>local file</p>');
     assert.equal(readData.path, 'workspace:/site/index.html');
-    const search = await callTool(port, accessToken, 8, 'search_workspace', { query: 'ManuMCP' });
+    const search = await callTool(port, accessToken, 9, 'search_workspace', { query: 'ManuMCP' });
     assert.equal(JSON.parse(toolText(search)).matches[0].path, 'workspace:/site/index.html');
 
-    const traversal = await callTool(port, accessToken, 9, 'read_workspace_file', { path: '../outside.txt' });
+    const traversal = await callTool(port, accessToken, 10, 'read_workspace_file', { path: '../outside.txt' });
     assert.equal(traversal.result.isError, true);
     assert.match(toolText(traversal), /PATH_TRAVERSAL/u);
-    const secretProposal = await callTool(port, accessToken, 10, 'create_workspace_file', {
+    const secretProposal = await callTool(port, accessToken, 11, 'create_workspace_file', {
         path: 'secret.txt',
         content: 'api_key = "this-is-not-a-real-key-but-is-long"\n',
     });
     assert.equal(secretProposal.result.isError, true);
     assert.match(toolText(secretProposal), /SECRET_CONTENT_BLOCKED/u);
 
-    const secondProposal = await callTool(port, accessToken, 11, 'create_workspace_file', {
+    const secondProposal = await callTool(port, accessToken, 12, 'create_workspace_file', {
         path: 'one-time.txt',
         content: 'only once',
     });
@@ -166,8 +171,8 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         confirmationToken: secondData.confirmationToken,
         confirmed: true,
     };
-    assert.equal(JSON.parse(toolText(await callTool(port, accessToken, 12, 'create_workspace_file', secondApplyArgs))).applied, true);
-    const replay = await callTool(port, accessToken, 13, 'create_workspace_file', secondApplyArgs);
+    assert.equal(JSON.parse(toolText(await callTool(port, accessToken, 13, 'create_workspace_file', secondApplyArgs))).applied, true);
+    const replay = await callTool(port, accessToken, 14, 'create_workspace_file', secondApplyArgs);
     assert.equal(replay.result.isError, true);
     assert.match(toolText(replay), /CONFIRMATION_INVALID/u);
 });

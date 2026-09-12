@@ -6,7 +6,9 @@ import type { FileAccessConfig, Profile } from "../core/file-access-config.js";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_OPERATION_TIMEOUT_MS = 30_000;
-const DEFAULT_WORKSPACE_NAME = "ManuMCP-Workspace";
+// On Windows the default exposed directory is the user's real Desktop. The
+// environment override remains available for a narrower project directory.
+const DEFAULT_WORKSPACE_NAME = "Desktop";
 const MAX_PORT = 65_535;
 
 export interface ManuMcpConfig {
@@ -116,7 +118,7 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
     };
     return {
         name: "ManuMCP",
-        version: "1.0.0",
+        version: "1.1.0",
         mode,
         workspacePath,
         workspaceAlias: "workspace",

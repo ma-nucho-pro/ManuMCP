@@ -77,7 +77,7 @@ function healthPayload(config) {
         node: process.version,
         pid: process.pid,
         startedAt,
-        note: "Solo se expone el workspace autorizado; no hay shell ni control de teclado, ratón o escritorio.",
+        note: "Por defecto workspace:/ es el Escritorio real de Windows. Solo se expone ese directorio autorizado; no hay shell ni control de teclado, ratón o ventanas.",
     };
 }
 async function handleMcpRequest(request, response, services) {

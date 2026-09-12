@@ -10,6 +10,7 @@ const MAX_WRITE_BYTES = 512 * 1024;
 const MAX_READ_BYTES = 256 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const MAX_PATCH_CHARS = 1024 * 1024;
+const DESKTOP_COMPATIBILITY_ALIAS = "desktop";
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 const pathSchema = z.string()
@@ -19,7 +20,9 @@ const requiredPathSchema = z.string()
     .min(1)
     .max(MAX_PATH_CHARS)
     .refine((value) => !/[\0\r\n]/u.test(value), "La ruta no puede contener NUL ni saltos de línea.");
-const rootSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u).optional();
+const rootSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u)
+    .describe("Alias del directorio autorizado: workspace (canónico) o desktop (alias compatible del mismo directorio).")
+    .optional();
 const confirmationSchema = z.string().max(8192).optional();
 const hashSchema = z.string().regex(/^[0-9a-f]{64}$/iu);
 
@@ -45,10 +48,24 @@ async function guarded<T>(services: ManuMcpServices, extra: Extra, operation: ()
     }
 }
 
+function normalizeRoot(root: string | undefined, alias: string): string | undefined {
+    if (root?.toLowerCase() === DESKTOP_COMPATIBILITY_ALIAS && alias === "workspace")
+        return alias;
+    return root;
+}
+
 function workspacePath(rawPath: string, root: string | undefined, alias: string): string {
+    const desktopPrefix = `${DESKTOP_COMPATIBILITY_ALIAS}:/`;
+    if (rawPath.toLowerCase().startsWith(desktopPrefix))
+        return `${alias}:/${rawPath.slice(desktopPrefix.length)}`;
     if (rawPath.length > 0)
         return rawPath;
     return `${root ?? alias}:/`;
+}
+
+function normalizedTarget(rawPath: string, rawRoot: string | undefined, alias: string): { path: string; rootAlias: string | undefined } {
+    const rootAlias = normalizeRoot(rawRoot, alias);
+    return { path: workspacePath(rawPath, rootAlias, alias), rootAlias };
 }
 
 function relativeMarker(rawPath: string, alias: string): string {
@@ -70,7 +87,7 @@ function writeCall<T>(services: ManuMcpServices, extra: Extra, token: string | u
 export function registerManuMcpTools(server: McpServer, services: ManuMcpServices): void {
     server.registerTool("get_device_health", {
         title: "ManuMCP health",
-        description: "Comprueba si el agente local ManuMCP está activo y qué workspace único tiene autorizado.",
+        description: "Comprueba si el agente local ManuMCP está activo y qué directorio único tiene autorizado. En Windows, la instalación predeterminada apunta al Escritorio real.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, _extra) => result({
@@ -87,7 +104,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("list_workspace", {
         title: "List workspace files",
-        description: "Lista archivos y carpetas dentro de workspace:/ con profundidad y presupuesto acotados. No accede al resto del ordenador.",
+        description: "Lista archivos y carpetas dentro de workspace:/; en la instalación predeterminada de Windows ese alias es el Escritorio real. También acepta desktop:/ como alias compatible del mismo directorio. Usa profundidad y presupuesto acotados y no accede al resto del ordenador.",
         inputSchema: {
             path: pathSchema.default(""),
             root: rootSchema,
@@ -97,8 +114,9 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         },
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (args, extra) => guarded(services, extra, async () => {
-        const start = await services.authorizer.authorizeExisting(workspacePath(args.path, args.root, services.config.workspaceAlias), {
-            rootAlias: args.root,
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        const start = await services.authorizer.authorizeExisting(target.path, {
+            rootAlias: target.rootAlias,
             kind: "directory",
         });
         const walked = await services.walker.collect(start, {
@@ -126,7 +144,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("read_workspace_file", {
         title: "Read workspace file",
-        description: "Lee texto UTF-8 de un archivo autorizado, con líneas numeradas, hash y límite de bytes. Los secretos potenciales y binarios se bloquean.",
+        description: "Lee texto UTF-8 de un archivo autorizado de workspace:/ (el Escritorio real por defecto en Windows), con líneas numeradas, hash y límite de bytes. Los secretos potenciales y binarios se bloquean.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -136,8 +154,9 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         },
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (args, extra) => guarded(services, extra, async () => {
-        const file = await services.authorizer.authorizeExisting(workspacePath(args.path, args.root, services.config.workspaceAlias), {
-            rootAlias: args.root,
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        const file = await services.authorizer.authorizeExisting(target.path, {
+            rootAlias: target.rootAlias,
             kind: "file",
             maxBytes: args.maxBytes,
         });
@@ -151,7 +170,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("search_workspace", {
         title: "Search workspace",
-        description: "Busca texto dentro del workspace autorizado; devuelve coincidencias acotadas y omite archivos secretos o demasiado grandes.",
+        description: "Busca texto dentro del directorio autorizado de workspace:/ (el Escritorio real por defecto en Windows); también acepta desktop:/ como alias compatible. Devuelve coincidencias acotadas y omite archivos secretos o demasiado grandes.",
         inputSchema: {
             query: z.string().min(1).max(4096),
             path: pathSchema.default(""),
@@ -168,12 +187,14 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         },
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (args, extra) => guarded(services, extra, async () => {
-        const start = await services.authorizer.authorizeExisting(workspacePath(args.path, args.root, services.config.workspaceAlias), {
-            rootAlias: args.root,
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        const start = await services.authorizer.authorizeExisting(target.path, {
+            rootAlias: target.rootAlias,
             kind: "directory",
         });
-        const after = args.afterPath === undefined ? undefined : {
-            path: relativeMarker(args.afterPath, start.root.alias),
+        const afterTarget = args.afterPath === undefined ? undefined : normalizedTarget(args.afterPath, undefined, start.root.alias);
+        const after = afterTarget === undefined ? undefined : {
+            path: relativeMarker(afterTarget.path, start.root.alias),
             line: args.afterLine ?? 1,
             column: args.afterColumn ?? 1,
         };
@@ -195,7 +216,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("create_workspace_directory", {
         title: "Create workspace directory",
-        description: "Prepara la creación de una carpeta dentro de workspace:/; la primera llamada solo muestra una vista previa y token. La segunda exige confirmed=true y ese token.",
+        description: "Prepara la creación de una carpeta dentro de workspace:/ (el Escritorio real por defecto en Windows); también acepta desktop:/ como alias compatible. La primera llamada solo muestra una vista previa y token. La segunda exige confirmed=true y ese token.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -203,16 +224,19 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmed: z.boolean().default(false),
         },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => services.writer.createDirectory({
-        path: args.path,
-        ...(args.root === undefined ? {} : { root: args.root }),
+    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        return services.writer.createDirectory({
+        path: target.path,
+        ...(target.rootAlias === undefined ? {} : { root: target.rootAlias }),
         ...(args.confirmationToken === undefined ? {} : { confirmationToken: args.confirmationToken }),
         confirmed: args.confirmed,
-    })));
+        });
+    }));
 
     server.registerTool("create_workspace_file", {
         title: "Create workspace text file",
-        description: "Prepara un archivo de texto UTF-8 dentro de workspace:/; nunca ejecuta el contenido. La primera llamada es vista previa y la segunda requiere confirmación explícita.",
+        description: "Prepara un archivo de texto UTF-8 dentro de workspace:/ (el Escritorio real por defecto en Windows); también acepta desktop:/ como alias compatible y nunca ejecuta el contenido. La primera llamada es vista previa y la segunda requiere confirmación explícita.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -221,13 +245,16 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmed: z.boolean().default(false),
         },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => services.writer.createTextFile({
-        path: args.path,
+    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        return services.writer.createTextFile({
+        path: target.path,
         content: args.content,
-        ...(args.root === undefined ? {} : { root: args.root }),
+        ...(target.rootAlias === undefined ? {} : { root: target.rootAlias }),
         ...(args.confirmationToken === undefined ? {} : { confirmationToken: args.confirmationToken }),
         confirmed: args.confirmed,
-    })));
+        });
+    }));
 
     server.registerTool("replace_workspace_text", {
         title: "Replace workspace text range",
@@ -243,20 +270,23 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmed: z.boolean().default(false),
         },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => services.writer.replaceTextRange({
-        path: args.path,
+    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        return services.writer.replaceTextRange({
+        path: target.path,
         startLine: args.startLine,
         endLine: args.endLine,
         replacement: args.replacement,
         expectedHash: args.expectedHash,
-        ...(args.root === undefined ? {} : { root: args.root }),
+        ...(target.rootAlias === undefined ? {} : { root: target.rootAlias }),
         ...(args.confirmationToken === undefined ? {} : { confirmationToken: args.confirmationToken }),
         confirmed: args.confirmed,
-    }, extra.signal)));
+        }, extra.signal);
+    }));
 
     server.registerTool("apply_workspace_patch", {
         title: "Apply workspace patch",
-        description: "Prepara la aplicación de un parche unificado a un archivo dentro de workspace:/ usando hash de precondición; la operación exige confirmación.",
+        description: "Prepara la aplicación de un parche unificado a un archivo dentro de workspace:/ (el Escritorio real por defecto en Windows); también acepta desktop:/ como alias compatible. Usa hash de precondición y exige confirmación.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -266,12 +296,15 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmed: z.boolean().default(false),
         },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => services.writer.applyPatch({
-        path: args.path,
+    }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
+        const target = normalizedTarget(args.path, args.root, services.config.workspaceAlias);
+        return services.writer.applyPatch({
+        path: target.path,
         patch: args.patch,
         expectedHash: args.expectedHash,
-        ...(args.root === undefined ? {} : { root: args.root }),
+        ...(target.rootAlias === undefined ? {} : { root: target.rootAlias }),
         ...(args.confirmationToken === undefined ? {} : { confirmationToken: args.confirmationToken }),
         confirmed: args.confirmed,
-    }, extra.signal)));
+        }, extra.signal);
+    }));
 }

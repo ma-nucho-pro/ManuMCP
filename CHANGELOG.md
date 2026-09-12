@@ -1,5 +1,12 @@
 # Changes
 
+## 1.1.0
+
+- Point the default Windows `workspace:/` root at the user's real Desktop so ChatGPT file operations affect the visible Desktop.
+- Keep the single-root security boundary and accept `desktop`/`desktop:/` as compatibility aliases for that same authorized root.
+- Align the HTTP agent, stdio tunnel entrypoint and Windows scheduled tasks on the Desktop default.
+- Add integration coverage for Desktop alias listing and confirmed writes.
+
 ## 1.0.0
 
 - Add the ManuMCP Windows agent with authenticated loopback HTTP and MCP stdio transports.

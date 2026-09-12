@@ -21,5 +21,12 @@ if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
 }
 
 $node = (Get-Command node -ErrorAction Stop).Source
+$desktopPath = [Environment]::GetFolderPath("Desktop")
+if ([string]::IsNullOrWhiteSpace($env:MANUMCP_WORKSPACE)) {
+    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+        $desktopPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Desktop"
+    }
+    $env:MANUMCP_WORKSPACE = $desktopPath
+}
 & $node $entryPoint --stdio
 exit $LASTEXITCODE
