@@ -100,6 +100,23 @@ $env:CONTROL_PLANE_API_KEY = "sk-..."
 
 El helper ejecuta `tunnel-client init --sample sample_mcp_stdio_local`, `doctor` y `run` con el comando stdio de ManuMCP. Descarga `tunnel-client` desde Platform tunnel settings o su release oficial; no pongas la runtime API key dentro de este repositorio ni en una tarea programada sin un almacén de secretos. El agente stdio no abre un servidor HTTP público y no necesita el token local.
 
+Para que el túnel vuelva a arrancar al iniciar sesión en Windows, después de crear el perfil puedes instalar la tarea automática con la clave presente solo en la sesión actual:
+
+```powershell
+$env:CONTROL_PLANE_API_KEY = "sk-..."
+.\scripts\install-tunnel-windows.ps1 -TunnelId "tunnel_..." -Profile "manumcp-final" -ClientPath "C:\ruta\a\tunnel-client.exe"
+$env:CONTROL_PLANE_API_KEY = $null
+```
+
+El instalador guarda la clave únicamente como un secreto cifrado con Windows DPAPI para el usuario actual, limita el archivo al usuario actual y registra `ManuMCP Tunnel` para iniciarlo al iniciar sesión. No la escribe en el repositorio ni en los argumentos de la tarea. Para revisar el estado:
+
+```powershell
+Get-ScheduledTask -TaskName "ManuMCP Agent", "ManuMCP Tunnel"
+& "C:\ruta\a\tunnel-client.exe" runtimes status manumcp --json
+```
+
+La tarea solo puede funcionar mientras el usuario de Windows pueda descifrar su credencial, la PC esté encendida/despierta y tenga red.
+
 Una vez que el túnel esté creado y asociado al workspace correcto:
 
 1. abre ChatGPT y activa Developer mode según la documentación de tu cuenta;

@@ -34,6 +34,11 @@ finally {
 $applicationData = [Environment]::GetFolderPath("ApplicationData")
 $appDataDirectory = Join-Path $applicationData "ManuMCP"
 New-Item -ItemType Directory -Path $appDataDirectory -Force | Out-Null
+$stdioWrapperSource = Join-Path $projectRoot "scripts\stdio-entrypoint.ps1"
+$stdioWrapperPath = Join-Path $appDataDirectory "stdio-entrypoint.ps1"
+$projectRootPath = Join-Path $appDataDirectory "project-root.txt"
+Copy-Item -LiteralPath $stdioWrapperSource -Destination $stdioWrapperPath -Force
+[IO.File]::WriteAllText($projectRootPath, $projectRoot, [Text.UTF8Encoding]::new($false))
 $tokenPath = Join-Path $appDataDirectory "local-token.txt"
 if (-not (Test-Path -LiteralPath $tokenPath -PathType Leaf)) {
     $token = (& $node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))").Trim()

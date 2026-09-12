@@ -31,7 +31,22 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
     $Workspace = Join-Path ([Environment]::GetFolderPath("UserProfile")) "ManuMCP-Workspace"
 }
 $env:MANUMCP_WORKSPACE = [IO.Path]::GetFullPath($Workspace)
-$mcpCommand = "$node `"$entryPoint`" --stdio"
+$applicationData = [Environment]::GetFolderPath("ApplicationData")
+$stdioWrapperPath = Join-Path $applicationData "ManuMCP\stdio-entrypoint.ps1"
+if (Test-Path -LiteralPath $stdioWrapperPath -PathType Leaf) {
+    $systemPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (-not (Test-Path -LiteralPath $systemPowerShell -PathType Leaf)) {
+        $systemPowerShell = (Get-Command powershell -ErrorAction Stop).Source
+    }
+    # tunnel-client tokenizes this command as a POSIX-like string. Forward slashes
+    # keep Windows paths intact when the command is launched by its Go runtime.
+    $commandShellPath = $systemPowerShell -replace '\\', '/'
+    $commandWrapperPath = $stdioWrapperPath -replace '\\', '/'
+    $mcpCommand = "$commandShellPath -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $commandWrapperPath"
+}
+else {
+    $mcpCommand = "node $entryPoint --stdio"
+}
 
 & $clientExecutable init --sample sample_mcp_stdio_local --profile $Profile --tunnel-id $TunnelId --mcp-command $mcpCommand
 if ($LASTEXITCODE -ne 0) { throw "tunnel-client init terminó con código $LASTEXITCODE." }
