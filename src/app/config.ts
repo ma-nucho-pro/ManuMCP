@@ -104,6 +104,19 @@ function pcRootFromEnvironment(): string {
     return assertSafeRoot("MANUMCP_PC_ROOT", resolvedPath(env("MANUMCP_PC_ROOT"), os.homedir()));
 }
 
+async function ensureDirectory(value: string): Promise<void> {
+    try {
+        const stat = await fs.stat(value);
+        if (!stat.isDirectory())
+            throw new Error(`La raíz autorizada no es un directorio: ${value}`);
+    }
+    catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+            throw error;
+        await fs.mkdir(value, { recursive: true });
+    }
+}
+
 async function loadLocalToken(): Promise<string | undefined> {
     const direct = env("MANUMCP_LOCAL_TOKEN");
     if (direct !== undefined)
@@ -139,9 +152,9 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
     if (samePath(workspacePath, downloadsPath) || samePath(workspacePath, pcPath) || samePath(downloadsPath, pcPath)) {
         throw new Error("Las raíces de Escritorio, Descargas y pc:/ deben ser directorios distintos.");
     }
-    await fs.mkdir(workspacePath, { recursive: true });
-    await fs.mkdir(downloadsPath, { recursive: true });
-    await fs.mkdir(pcPath, { recursive: true });
+    await ensureDirectory(workspacePath);
+    await ensureDirectory(downloadsPath);
+    await ensureDirectory(pcPath);
     const profile = profileFromEnvironment();
     const port = positiveInteger(env("MANUMCP_PORT"), DEFAULT_PORT, MAX_PORT, true);
     const operationTimeoutMs = positiveInteger(env("MANUMCP_OPERATION_TIMEOUT_MS"), DEFAULT_OPERATION_TIMEOUT_MS, 120_000);
@@ -165,6 +178,22 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
             "**/*.env.*",
             "**/AppData",
             "**/AppData/**",
+            "**/Windows",
+            "**/Windows/**",
+            "**/Program Files",
+            "**/Program Files/**",
+            "**/Program Files (x86)",
+            "**/Program Files (x86)/**",
+            "**/ProgramData",
+            "**/ProgramData/**",
+            "**/System Volume Information",
+            "**/System Volume Information/**",
+            "**/$Recycle.Bin",
+            "**/$Recycle.Bin/**",
+            "**/Recovery",
+            "**/Recovery/**",
+            "**/PerfLogs",
+            "**/PerfLogs/**",
             "**/NTUSER.*",
             "**/UsrClass.dat*",
             "**/.aws",

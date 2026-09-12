@@ -233,6 +233,16 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     });
     const protectedListing = JSON.parse(toolText(protectedListingReply));
     assert.equal(protectedListing.entries.some((entry) => entry.path === 'pc:/AppData'), false);
+    let protectedRequestId = 32;
+    for (const protectedDirectory of ['Windows', 'Program Files', 'Program Files (x86)', 'ProgramData']) {
+        await fs.mkdir(path.join(pcDirectory, protectedDirectory), { recursive: true });
+        const protectedDirectoryReply = await callTool(port, accessToken, protectedRequestId++, 'list_workspace', {
+            root: 'pc',
+            path: `pc:/${protectedDirectory}`,
+        });
+        assert.equal(protectedDirectoryReply.result.isError, true);
+        assert.match(toolText(protectedDirectoryReply), /PATH_DENIED/u);
+    }
 
     const outsideProfileReply = await callTool(port, accessToken, 28, 'read_workspace_file', {
         path: path.join(directory, 'another-user', 'outside.txt'),

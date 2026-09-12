@@ -2,7 +2,7 @@
 
 ManuMCP es un agente MCP local para conectar ChatGPT con tus carpetas de Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. La raíz `pc:/` también se puede ampliar deliberadamente a una unidad como `C:\` al instalar, manteniendo las exclusiones de seguridad. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC.
 
-La base de seguridad es deliberadamente pequeña: raíces de usuario explícitas, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer el disco del sistema fuera de las raíces autorizadas.
+La base de seguridad es deliberadamente pequeña: raíces explícitas, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer el disco del sistema fuera de las raíces autorizadas.
 
 ## Qué resuelve y qué no
 

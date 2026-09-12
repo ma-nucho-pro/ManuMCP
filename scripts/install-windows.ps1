@@ -62,8 +62,19 @@ if ([string]::IsNullOrWhiteSpace($PcRoot)) {
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
 $resolvedDownloads = [IO.Path]::GetFullPath($Downloads)
 $resolvedPcRoot = [IO.Path]::GetFullPath($PcRoot)
-New-Item -ItemType Directory -Path $resolvedWorkspace -Force | Out-Null
-New-Item -ItemType Directory -Path $resolvedDownloads, $resolvedPcRoot -Force | Out-Null
+function Ensure-Directory {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        throw "La raíz autorizada no es un directorio: $Path"
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
+}
+Ensure-Directory $resolvedWorkspace
+Ensure-Directory $resolvedDownloads
+Ensure-Directory $resolvedPcRoot
 $rootsConfiguration = [ordered]@{
     workspace = $resolvedWorkspace
     downloads = $resolvedDownloads
@@ -75,9 +86,12 @@ $rootsConfigPath = Join-Path $appDataDirectory "roots.json"
 $taskName = "ManuMCP Agent"
 $startScript = Join-Path $projectRoot "scripts\start-windows.ps1"
 $quotedScript = '"' + $startScript + '"'
-$quotedWorkspace = '"' + $resolvedWorkspace + '"'
-$quotedDownloads = '"' + $resolvedDownloads + '"'
-$quotedPcRoot = '"' + $resolvedPcRoot + '"'
+$taskWorkspace = $resolvedWorkspace.Replace('\', '/')
+$taskDownloads = $resolvedDownloads.Replace('\', '/')
+$taskPcRoot = $resolvedPcRoot.Replace('\', '/')
+$quotedWorkspace = '"' + $taskWorkspace + '"'
+$quotedDownloads = '"' + $taskDownloads + '"'
+$quotedPcRoot = '"' + $taskPcRoot + '"'
 $quotedNode = '"' + $node + '"'
 $action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $quotedScript -Workspace $quotedWorkspace -Downloads $quotedDownloads -PcRoot $quotedPcRoot -NodePath $quotedNode"
 $userId = "$env:USERDOMAIN\$env:USERNAME"

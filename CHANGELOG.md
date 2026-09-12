@@ -3,6 +3,8 @@
 ## 1.2.0
 
 - Add `downloads:/` for the real Windows Downloads folder and `pc:/` for the complete Windows user profile.
+- Allow an explicitly configured broad `pc:/` root such as `C:\` while keeping system directories, credentials and other protected paths denied.
+- Handle existing drive roots without trying to create them, so the Windows scheduled agent starts correctly with `-PcRoot "C:\"`.
 - Accept natural aliases (`descargas`, `escritorio`, `ordenador`) and absolute Windows paths that resolve inside an authorized root.
 - Keep default bare paths on the Desktop while routing `Documents/...` and `Downloads/...` to their natural roots.
 - Extend health output, installation messages and integration coverage to all three roots.

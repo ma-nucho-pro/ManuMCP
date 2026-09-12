@@ -52,7 +52,19 @@ if ([string]::IsNullOrWhiteSpace($PcRoot)) {
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
 $resolvedDownloads = [IO.Path]::GetFullPath($Downloads)
 $resolvedPcRoot = [IO.Path]::GetFullPath($PcRoot)
-New-Item -ItemType Directory -Path $resolvedWorkspace, $resolvedDownloads, $resolvedPcRoot -Force | Out-Null
+function Ensure-Directory {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        throw "La raíz autorizada no es un directorio: $Path"
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
+}
+Ensure-Directory $resolvedWorkspace
+Ensure-Directory $resolvedDownloads
+Ensure-Directory $resolvedPcRoot
 
 $env:MANUMCP_WORKSPACE = $resolvedWorkspace
 $env:MANUMCP_DOWNLOADS = $resolvedDownloads
