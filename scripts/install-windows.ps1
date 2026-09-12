@@ -48,7 +48,14 @@ $action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProf
 $userId = "$env:USERDOMAIN\$env:USERNAME"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
 $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -MultipleInstances IgnoreNew
 $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 if ($null -ne $existingTask -and $existingTask.State -eq "Running") {
     Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
