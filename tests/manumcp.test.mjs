@@ -102,7 +102,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.deepEqual(healthData.authorizedRoots, [
         'workspace:/ (Escritorio)',
         'downloads:/ (Descargas)',
-        'pc:/ (perfil de usuario de Windows)',
+        'pc:/ (raíz configurada del PC)',
     ]);
     const unauthorized = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'GET' });
     assert.equal(unauthorized.status, 401);

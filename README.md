@@ -1,6 +1,6 @@
 # ManuMCP
 
-ManuMCP es un agente MCP local para conectar ChatGPT con tus carpetas de usuario de Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC.
+ManuMCP es un agente MCP local para conectar ChatGPT con tus carpetas de Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. La raíz `pc:/` también se puede ampliar deliberadamente a una unidad como `C:\` al instalar, manteniendo las exclusiones de seguridad. Permite consultar archivos de texto y preparar cambios acotados desde un cliente MCP remoto, manteniendo el proceso en tu PC.
 
 La base de seguridad es deliberadamente pequeña: raíces de usuario explícitas, acceso únicamente a archivos de texto, límites de tamaño, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases. ManuMCP no es un escritorio remoto y no puede ejecutar comandos, abrir programas, mover el ratón, pulsar teclas ni leer el disco del sistema fuera de las raíces autorizadas.
 
@@ -21,7 +21,7 @@ ManuMCP --stdio en tu PC
 
 Cerrar Codex no detiene este flujo. En Windows, la instalación registra una tarea programada de usuario para arrancar el agente al iniciar sesión. El túnel privado se configura aparte porque necesita asociarse a una cuenta y workspace de OpenAI.
 
-No se debe confundir “trabajar en mi ordenador” con control total de la interfaz. La versión incluida controla, de forma acotada, archivos de texto dentro de las tres raíces autorizadas; `pc:/` cubre cualquier carpeta del perfil del usuario, incluidos Documentos, Escritorio y Descargas. Esa frontera evita convertir un enlace de ChatGPT en una puerta para ejecutar malware o exfiltrar credenciales.
+No se debe confundir “trabajar en mi ordenador” con control total de la interfaz. La versión incluida controla, de forma acotada, archivos de texto dentro de las tres raíces autorizadas; `pc:/` cubre cualquier carpeta de la raíz configurada, que por defecto es el perfil del usuario e incluye Documentos, Escritorio y Descargas. Si se configura `C:\`, cubre las carpetas normales de esa unidad, pero sigue bloqueando credenciales, datos de sesión, AppData y directorios del sistema. Esa frontera evita convertir un enlace de ChatGPT en una puerta para ejecutar malware o exfiltrar credenciales.
 
 ## Herramientas MCP
 
@@ -75,11 +75,13 @@ Para ejecutarlo de forma visible durante una prueba:
 .\scripts\start-windows.ps1 -Foreground
 ```
 
-La instalación predeterminada usa el Escritorio, Descargas y `%USERPROFILE%`. Si necesitas cambiar alguna raíz, puedes pasarla explícitamente; el túnel reutilizará esa configuración guardada:
+La instalación predeterminada usa el Escritorio, Descargas y `%USERPROFILE%`. Si necesitas cambiar alguna raíz, puedes pasarla explícitamente; el túnel reutilizará esa configuración guardada. Para autorizar deliberadamente la unidad del sistema como raíz amplia de archivos, usa `-PcRoot "C:\"`; esta opción no habilita shell ni control de ventanas y las exclusiones de seguridad siguen activas:
 
 ```powershell
-.\scripts\install-windows.ps1 -Downloads "D:\Mis descargas" -PcRoot "D:\Mis archivos"
+.\scripts\install-windows.ps1 -PcRoot "C:\"
 ```
+
+También puedes configurar una raíz distinta y más estrecha, por ejemplo `-Downloads "D:\Mis descargas" -PcRoot "D:\Mis archivos"`.
 
 Para quitar únicamente la tarea automática, sin borrar archivos, workspace ni token:
 
@@ -154,14 +156,14 @@ El script arranca o reutiliza el agente local y muestra la URL HTTPS resultante 
 
 ## Límites importantes
 
-- `workspace:/` y `desktop:/` corresponden al Escritorio real (`%USERPROFILE%\Desktop`); `downloads:/` y `descargas:/` corresponden a Descargas; `pc:/` corresponde a `%USERPROFILE%` y permite cualquier carpeta del perfil.
+- `workspace:/` y `desktop:/` corresponden al Escritorio real (`%USERPROFILE%\Desktop`); `downloads:/` y `descargas:/` corresponden a Descargas; `pc:/` corresponde a la raíz configurada por `MANUMCP_PC_ROOT` (por defecto `%USERPROFILE%`) y permite cualquier carpeta que no esté excluida por la política de seguridad.
 - Las rutas se expresan normalmente como `pc:/Documents/archivo.txt`, `downloads:/archivo.txt` o `workspace:/carpeta/archivo.txt`. También se aceptan rutas absolutas de Windows que estén dentro de esas raíces y se convierten a su alias seguro; se siguen rechazando UNC, `..`, URI, dispositivos y alias ajenos.
 - Un nombre sin raíz (por ejemplo `hola mundo`) conserva el valor predeterminado de Escritorio; `Documents/...` se interpreta como `pc:/Documents/...`, y `Downloads/...` como `downloads:/...`.
-- Las raíces se pueden estrechar mediante `MANUMCP_WORKSPACE`, `MANUMCP_DOWNLOADS` y `MANUMCP_PC_ROOT`.
+- Las raíces se pueden cambiar mediante `MANUMCP_WORKSPACE`, `MANUMCP_DOWNLOADS` y `MANUMCP_PC_ROOT`; el instalador de Windows también acepta `-PcRoot "C:\"` para una raíz amplia de la unidad del sistema.
 - Se bloquean `.mcpignore`, credenciales conocidas, claves privadas, tokens, `.env`, `AppData`, colmenas de registro del perfil (`NTUSER.*`/`UsrClass.dat*`), `node_modules`, `.git/objects`, `dist`, `build`, `.next`, `coverage` y otros patrones de riesgo.
 - El perfil por defecto es `edit_safe`; se puede usar `MANUMCP_PROFILE=read_only` para exponer únicamente lectura.
 - Los tamaños de lectura/escritura, líneas, profundidad, concurrencia y tiempo de operación son finitos.
-- No hay `exec`, shell, PowerShell remoto, descarga de URLs, apertura de programas, control de navegador ni control de teclado/ratón. El acceso a `pc:/` permite archivos y carpetas de texto autorizados del perfil, no manejar ventanas ni aplicaciones.
+- No hay `exec`, shell, PowerShell remoto, descarga de URLs, apertura de programas, control de navegador ni control de teclado/ratón. El acceso a `pc:/` permite archivos y carpetas de texto autorizados de la raíz configurada, no manejar ventanas ni aplicaciones.
 - El ordenador debe estar encendido y despierto; “instalado” no significa que funcione cuando está apagado o sin conexión.
 - La documentación actual de OpenAI indica que las apps MCP están disponibles solo en la web, no en móvil. Por tanto, esta implementación no puede cumplir una conexión MCP desde la app móvil; úsala desde ChatGPT web. La compatibilidad completa con acciones de escritura también depende del plan y del workspace: OpenAI la documenta para Business y Enterprise/Edu, mientras que Pro queda limitado a lectura/obtención en este flujo. Consulta la disponibilidad vigente en tu cuenta antes de publicar.
 

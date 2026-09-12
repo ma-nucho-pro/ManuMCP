@@ -33,7 +33,7 @@ const requiredPathSchema = z.string()
     .max(MAX_PATH_CHARS)
     .refine((value) => !/[\0\r\n]/u.test(value), "La ruta no puede contener NUL ni saltos de línea.");
 const rootSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u)
-    .describe("Destino: workspace/desktop para Escritorio, downloads para Descargas o pc para cualquier carpeta del perfil de usuario de Windows.")
+    .describe("Destino: workspace/desktop para Escritorio, downloads para Descargas o pc para cualquier carpeta dentro de la raíz de PC autorizada (por defecto, el perfil de usuario de Windows).")
     .optional();
 const confirmationSchema = z.string().max(8192).optional();
 const hashSchema = z.string().regex(/^[0-9a-f]{64}$/iu);
@@ -163,7 +163,7 @@ function writeCall(services, extra, token, confirmed, operation) {
 export function registerManuMcpTools(server, services) {
     server.registerTool("get_device_health", {
         title: "ManuMCP health",
-        description: "Comprueba si ManuMCP está activo y muestra los destinos de archivos autorizados: Escritorio, Descargas y el perfil de usuario de Windows.",
+        description: "Comprueba si ManuMCP está activo y muestra los destinos autorizados: Escritorio, Descargas y la raíz configurada de pc:/.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, _extra) => result({
@@ -177,14 +177,14 @@ export function registerManuMcpTools(server, services) {
         authorizedRoots: [
             `${services.config.workspaceAlias}:/ (Escritorio)`,
             `${services.config.downloadsAlias}:/ (Descargas)`,
-            `${services.config.pcAlias}:/ (perfil de usuario de Windows)`,
+            `${services.config.pcAlias}:/ (raíz configurada del PC)`,
         ],
         transport: services.config.mode,
         pid: process.pid,
     }));
     server.registerTool("list_workspace", {
         title: "List workspace files",
-        description: "Lista archivos y carpetas. Usa workspace:/ o desktop:/ para el Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro del perfil de usuario de Windows. No accede a las carpetas de otros usuarios ni a rutas fuera de los destinos autorizados.",
+        description: "Lista archivos y carpetas. Usa workspace:/ o desktop:/ para el Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz de PC autorizada. Por defecto pc:/ es el perfil de usuario de Windows; no accede a rutas fuera de los destinos autorizados.",
         inputSchema: {
             path: pathSchema.default(""),
             root: rootSchema,
@@ -223,7 +223,7 @@ export function registerManuMcpTools(server, services) {
     }));
     server.registerTool("read_workspace_file", {
         title: "Read workspace file",
-        description: "Lee texto UTF-8 de un archivo autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta del perfil de usuario de Windows. Las credenciales potenciales y los binarios se bloquean.",
+        description: "Lee texto UTF-8 de un archivo autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz autorizada. Las credenciales potenciales y los binarios se bloquean.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -248,7 +248,7 @@ export function registerManuMcpTools(server, services) {
     }));
     server.registerTool("search_workspace", {
         title: "Search workspace",
-        description: "Busca texto dentro de un destino autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta del perfil de usuario de Windows; devuelve coincidencias acotadas y omite secretos o archivos demasiado grandes.",
+        description: "Busca texto dentro de un destino autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz autorizada; devuelve coincidencias acotadas y omite secretos o archivos demasiado grandes.",
         inputSchema: {
             query: z.string().min(1).max(4096),
             path: pathSchema.default(""),
@@ -293,7 +293,7 @@ export function registerManuMcpTools(server, services) {
     }));
     server.registerTool("create_workspace_directory", {
         title: "Create workspace directory",
-        description: "Prepara la creación de una carpeta en Escritorio, Descargas o cualquier carpeta del perfil de usuario usando workspace:/, downloads:/ o pc:/. La primera llamada solo muestra una vista previa y token. La segunda exige confirmed=true y ese token.",
+        description: "Prepara la creación de una carpeta en Escritorio, Descargas o cualquier carpeta dentro de la raíz de pc:/ usando workspace:/, downloads:/ o pc:/. La primera llamada solo muestra una vista previa y token. La segunda exige confirmed=true y ese token.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -312,7 +312,7 @@ export function registerManuMcpTools(server, services) {
     }));
     server.registerTool("create_workspace_file", {
         title: "Create workspace text file",
-        description: "Prepara un archivo de texto UTF-8 en Escritorio, Descargas o cualquier carpeta del perfil de usuario usando workspace:/, downloads:/ o pc:/; nunca ejecuta el contenido y exige confirmación explícita antes de escribir.",
+        description: "Prepara un archivo de texto UTF-8 en Escritorio, Descargas o cualquier carpeta dentro de la raíz de pc:/ usando workspace:/, downloads:/ o pc:/; nunca ejecuta el contenido y exige confirmación explícita antes de escribir.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -360,7 +360,7 @@ export function registerManuMcpTools(server, services) {
     }));
     server.registerTool("apply_workspace_patch", {
         title: "Apply workspace patch",
-        description: "Prepara la aplicación de un parche unificado en Escritorio, Descargas o cualquier carpeta del perfil de usuario usando workspace:/, downloads:/ o pc:/. Usa hash de precondición y exige confirmación.",
+        description: "Prepara la aplicación de un parche unificado en Escritorio, Descargas o cualquier carpeta dentro de la raíz de pc:/ usando workspace:/, downloads:/ o pc:/. Usa hash de precondición y exige confirmación.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
