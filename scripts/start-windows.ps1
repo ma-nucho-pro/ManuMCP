@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Workspace,
+    [string]$NodePath,
     [ValidateRange(0, 65535)]
     [int]$Port = 8787,
     [switch]$Foreground
@@ -8,7 +9,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$node = (Get-Command node -ErrorAction Stop).Source
+if ([string]::IsNullOrWhiteSpace($NodePath)) {
+    $node = (Get-Command node -ErrorAction Stop).Source
+}
+else {
+    $node = [IO.Path]::GetFullPath($NodePath)
+    if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
+        throw "No existe el ejecutable de Node indicado: $node"
+    }
+}
 $entryPoint = Join-Path $projectRoot "dist\app\server.js"
 if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
     throw "No existe $entryPoint. Ejecuta scripts\install-windows.ps1 primero."

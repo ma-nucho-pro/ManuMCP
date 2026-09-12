@@ -63,6 +63,8 @@ El instalador:
 4. registra la tarea de usuario `ManuMCP Agent` y la inicia;
 5. deja los logs en `%APPDATA%\ManuMCP\logs\agent.log`.
 
+La tarea usa el PowerShell del sistema y la instalación de Node.js detectada, no el runtime de Codex. También puede iniciar el agente con batería, no tiene límite de duración y está configurada para reintentarlo si el proceso termina.
+
 El endpoint HTTP local queda en `http://127.0.0.1:8787/mcp` y exige el token Bearer. Solo escucha en loopback. El token no se guarda en el repositorio ni se muestra en los logs.
 
 Para ejecutarlo de forma visible durante una prueba:

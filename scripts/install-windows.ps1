@@ -7,11 +7,17 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $node = (Get-Command node -ErrorAction Stop).Source
 $npm = (Get-Command npm -ErrorAction Stop).Source
-$shell = (Get-Command pwsh -ErrorAction SilentlyContinue)
-if ($null -eq $shell) {
-    $shell = Get-Command powershell -ErrorAction Stop
+$systemPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+if (Test-Path -LiteralPath $systemPowerShell -PathType Leaf) {
+    $shellPath = $systemPowerShell
 }
-$shellPath = $shell.Source
+else {
+    $shell = (Get-Command pwsh -ErrorAction SilentlyContinue)
+    if ($null -eq $shell) {
+        $shell = Get-Command powershell -ErrorAction Stop
+    }
+    $shellPath = $shell.Source
+}
 $entryPoint = Join-Path $projectRoot "dist\app\server.js"
 
 Push-Location $projectRoot
@@ -44,7 +50,8 @@ $taskName = "ManuMCP Agent"
 $startScript = Join-Path $projectRoot "scripts\start-windows.ps1"
 $quotedScript = '"' + $startScript + '"'
 $quotedWorkspace = '"' + $resolvedWorkspace + '"'
-$action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $quotedScript -Workspace $quotedWorkspace"
+$quotedNode = '"' + $node + '"'
+$action = New-ScheduledTaskAction -Execute $shellPath -Argument "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $quotedScript -Workspace $quotedWorkspace -NodePath $quotedNode"
 $userId = "$env:USERDOMAIN\$env:USERNAME"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
 $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
