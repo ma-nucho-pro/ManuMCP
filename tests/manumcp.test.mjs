@@ -213,6 +213,8 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
 
     await fs.mkdir(path.join(pcDirectory, 'AppData'), { recursive: true });
     await fs.writeFile(path.join(pcDirectory, 'AppData', 'blocked.txt'), 'protected profile data\n');
+    await fs.mkdir(path.join(pcDirectory, 'appdata'), { recursive: true });
+    await fs.writeFile(path.join(pcDirectory, 'appdata', 'blocked.txt'), 'protected profile data\n');
     const protectedReply = await callTool(port, accessToken, 25, 'read_workspace_file', {
         path: 'pc:/AppData/blocked.txt',
     });
