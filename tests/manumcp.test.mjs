@@ -117,6 +117,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.deepEqual(tools.result.tools.map((tool) => tool.name), [
         'get_device_health',
         'list_storage_volumes',
+        'get_storage_volumes',
         'list_workspace',
         'read_workspace_file',
         'search_workspace',
@@ -157,6 +158,9 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     const volumesReply = await callTool(port, accessToken, 6, 'list_storage_volumes');
     assert.equal(volumesReply.result.isError, undefined);
     assert.ok(JSON.parse(toolText(volumesReply)).volumes.some((volume) => volume.alias === 'pc'));
+    const healthReply = await callTool(port, accessToken, 7, 'get_device_health');
+    assert.equal(healthReply.result.isError, undefined);
+    assert.ok(JSON.parse(toolText(healthReply)).volumes.some((volume) => volume.alias === 'pc'));
 
     for (const [id, name, argumentsValue] of [
         [40, 'run_command', { command: 'Write-Output preview-only', shell: 'powershell', cwd: 'workspace:/', timeoutMs: 1_000 }],

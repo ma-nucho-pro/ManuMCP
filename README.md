@@ -310,7 +310,7 @@ La clave de runtime y el identificador del túnel son secretos/configuración de
 3. Añade la app MCP o el túnel desde la sección de Apps/Plugins.
 4. Selecciona el túnel asociado a ese workspace y completa la autorización.
 5. Si cambiaste herramientas, pulsa **Actualizar/Refresh** para que ChatGPT reciba el catálogo nuevo.
-6. Prueba `get_device_health`, después `list_storage_volumes` y finalmente una operación pequeña.
+6. Prueba `get_device_health`, que incluye el inventario de unidades, después `list_storage_volumes` o su alias `get_storage_volumes` y finalmente una operación pequeña.
 
 Para usarlo desde un teléfono, abre ChatGPT web en el navegador y comprueba la disponibilidad de tu cuenta. La documentación actual de OpenAI indica que las apps MCP personalizadas se conectan desde la web y no desde la aplicación móvil nativa; el túnel puede seguir corriendo en tu PC, pero el cliente móvil nativo no se debe presentar como compatible sin soporte oficial.
 
@@ -330,8 +330,9 @@ Por ejemplo, en Windows/macOS el cliente puede abrir Word con `launch_applicatio
 
 | Herramienta | Función | Cambia el equipo |
 | --- | --- | --- |
-| `get_device_health` | Estado, plataforma, perfil y raíces autorizadas | No |
+| `get_device_health` | Estado, plataforma, perfil, raíces autorizadas e inventario de unidades | No |
 | `list_storage_volumes` | Descubre unidades/volúmenes y aliases utilizables | No |
+| `get_storage_volumes` | Alias de compatibilidad para obtener unidades/volúmenes | No |
 | `list_workspace` | Lista archivos y carpetas con límites | No |
 | `read_workspace_file` | Lee texto UTF-8 con paginación y hash | No |
 | `search_workspace` | Busca texto dentro de una raíz autorizada | No |

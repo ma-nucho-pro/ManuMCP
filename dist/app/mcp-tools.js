@@ -235,24 +235,34 @@ function authorizedRootDescriptions(config) {
 export function registerManuMcpTools(server, services) {
     server.registerTool("get_device_health", {
         title: "ManuMCP health",
-        description: "Comprueba si ManuMCP está activo y muestra el sistema, los volúmenes autorizados y el modo de control.",
+        description: "Comprueba si ManuMCP está activo y muestra el sistema, el inventario de unidades, los volúmenes autorizados y el modo de control.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-    }, async (_args, _extra) => result({
-        ok: true,
-        name: services.config.name,
-        version: services.config.version,
-        platform: process.platform,
-        node: process.version,
-        profile: services.config.profile,
-        workspace: `${services.config.workspaceAlias}:/`,
-        authorizedRoots: authorizedRootDescriptions(services.config),
-        transport: services.config.mode,
-        pid: process.pid,
+    }, async (_args, extra) => guarded(services, extra, async () => {
+        const storage = await services.system.listStorageVolumes();
+        return {
+            ok: true,
+            name: services.config.name,
+            version: services.config.version,
+            platform: process.platform,
+            node: process.version,
+            profile: services.config.profile,
+            workspace: `${services.config.workspaceAlias}:/`,
+            authorizedRoots: authorizedRootDescriptions(services.config),
+            volumes: storage.volumes,
+            transport: services.config.mode,
+            pid: process.pid,
+        };
     }));
     server.registerTool("list_storage_volumes", {
         title: "List computer storage volumes",
         description: "Lista las unidades o volúmenes disponibles y el alias que ManuMCP puede usar. En Windows se descubren C:, D:, F… cuando están montadas; en macOS pc:/ cubre el sistema y /Volumes contiene discos externos.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (_args, extra) => guarded(services, extra, () => services.system.listStorageVolumes()));
+    server.registerTool("get_storage_volumes", {
+        title: "Get computer storage volumes",
+        description: "Alias de compatibilidad para clientes que no muestran list_storage_volumes. Lista las unidades o volúmenes disponibles y el alias que ManuMCP puede usar.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, extra) => guarded(services, extra, () => services.system.listStorageVolumes()));
