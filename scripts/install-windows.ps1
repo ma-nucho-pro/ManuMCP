@@ -9,8 +9,8 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $node = (Get-Command node -ErrorAction Stop).Source
 $npm = (Get-Command npm -ErrorAction Stop).Source
-$nodeVersionCheck = & $node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'
-if ($LASTEXITCODE -ne 0) {
+$nodeVersion = [version]((& $node --version).TrimStart("v"))
+if ($nodeVersion -lt [version]"22.12.0") {
     throw "ManuMCP necesita Node.js 22.12 o posterior. Versión encontrada: $(& $node --version)."
 }
 $systemPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"

@@ -367,6 +367,8 @@ La clave de runtime y el identificador del túnel son secretos/configuración de
 5. Si cambiaste herramientas, pulsa **Actualizar/Refresh** para que ChatGPT reciba el catálogo nuevo.
 6. Prueba `get_device_health`, que incluye el inventario de unidades, después `list_storage_volumes` o su alias `get_storage_volumes` y finalmente una operación pequeña.
 
+La disponibilidad de acciones de escritura y control depende también de la cuenta, el plan, el workspace y las políticas del cliente ChatGPT. ManuMCP no puede habilitar por código una acción que ChatGPT haya ocultado o bloqueado; si el cliente solo ofrece lectura/fetch, el servidor seguirá funcionando pero no podrá recibir escrituras, comandos o control gráfico desde ese chat. Consulta la [documentación de Developer mode y MCP apps](https://help.openai.com/en/articles/12584461) para las reglas vigentes de tu cuenta.
+
 #### Qué puede hacer un agente con navegador
 
 Un agente que tenga browser-use o computer-use puede abrir la página de Apps, comprobar el estado de la app y pulsar **Crear**, **Scan Tools**, **Actualizar/Refresh** y **Guardar**. También puede seleccionar `ManuMCP` en un chat y ejecutar las pruebas de solo lectura. No puede ni debe iniciar sesión con credenciales que el usuario le entregue, leer cookies, recuperar una clave oculta del navegador o aprobar permisos en nombre del propietario.
@@ -386,8 +388,11 @@ ManuMCP no pretende ser una extensión del navegador ni sustituye la capacidad d
 3. `focus_window` activa la aplicación.
 4. `control_mouse`, `type_text` y `press_hotkey` interactúan con la interfaz.
 5. `launch_application` puede iniciar Word, Edge, Chrome, Safari u otra aplicación instalada.
+6. `open_url` abre una URL HTTP/HTTPS en el navegador predeterminado; después el agente puede observar y operar esa ventana con las herramientas anteriores.
 
 Por ejemplo, en Windows/macOS el cliente puede abrir Word con `launch_application`, usar `list_windows` para localizarlo y escribir en el documento. Para abrir un archivo existente se usa `open_item`. En Linux puede abrir aplicaciones o documentos, pero no controlar gráficamente sus ventanas mediante las herramientas de ManuMCP. El cliente sigue siendo responsable de sus propias capacidades de navegador, visión y confirmación.
+
+En macOS y Linux, una respuesta correcta de `open_url` confirma que el sistema entregó la URL a `/usr/bin/open` o `xdg-open`; no garantiza que el navegador haya terminado de cargar la página. Linux necesita una sesión gráfica activa y que `xdg-open` esté instalado.
 
 ## Herramientas disponibles
 
@@ -406,6 +411,7 @@ Por ejemplo, en Windows/macOS el cliente puede abrir Word con `launch_applicatio
 | `run_command` | PowerShell/CMD o sh/bash/zsh | Sí, confirmación |
 | `launch_application` | Abre un ejecutable o aplicación instalada | Sí, confirmación |
 | `open_item` | Abre un archivo/carpeta con la aplicación asociada | Sí, confirmación |
+| `open_url` | Abre una URL HTTP/HTTPS en el navegador predeterminado | Sí, confirmación |
 | `list_processes` | Lista procesos y memoria | No |
 | `terminate_process` | Termina un proceso por PID | Sí, confirmación |
 | `list_windows` | Lista ventanas visibles y la activa | No |
@@ -426,6 +432,7 @@ Las operaciones mutantes siguen siempre un flujo de dos llamadas: ManuMCP devuel
 - En Windows se exponen solo letras de unidad montadas y accesibles en el momento en que arranca el agente. Si conectas una unidad después, reinicia el agente o vuelve a instalarlo para descubrirla.
 - Un disco apagado, desmontado, cifrado o sin permisos no puede ser controlado por ningún MCP sin que el sistema operativo lo haga accesible.
 - Los comandos se ejecutan como el usuario actual. ManuMCP no eleva UAC, no rompe permisos de macOS y no desactiva sandboxing de un cliente.
+- `run_command` es un shell general: después de la confirmación puede leer o modificar cualquier recurso al que la cuenta de Windows tenga acceso. Las denegaciones de `AppData`, credenciales y otras rutas sensibles pertenecen a las herramientas de archivos y al directorio de trabajo; no convierten un shell general en una caja de arena.
 - La política de archivos bloquea credenciales, `AppData`, `Windows`, `Program Files`, `ProgramData`, `System`, `Library`, `private`, `.ssh`, `.aws`, `.config`, `.git/objects` y otros destinos sensibles.
 - La política de archivos rechaza enlaces simbólicos y hard links para evitar escapar de una raíz o tocar un archivo inesperado.
 - Las capturas pueden contener contraseñas, correo, documentos y datos personales.

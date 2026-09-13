@@ -128,6 +128,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         'run_command',
         'launch_application',
         'open_item',
+        'open_url',
         'list_processes',
         'terminate_process',
         'list_windows',
@@ -140,6 +141,13 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         'type_text',
         'press_hotkey',
     ]);
+    const openUrlTool = tools.result.tools.find((tool) => tool.name === 'open_url');
+    assert.deepEqual(openUrlTool.annotations, {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+    });
 
     const desktopAliasReply = await callTool(port, accessToken, 3, 'list_workspace', { root: 'desktop', path: 'desktop:/' });
     assert.equal(desktopAliasReply.result.isError, undefined);
@@ -162,6 +170,19 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(healthReply.result.isError, undefined);
     assert.ok(JSON.parse(toolText(healthReply)).volumes.some((volume) => volume.alias === 'pc'));
 
+    for (const [id, invalidUrl] of [
+        [80, 'file:///C:/Windows/System32'],
+        [81, 'https://user:password@example.com'],
+        [82, 'https://@example.com'],
+        [83, ' https://example.com'],
+        [84, 'https://example.com '],
+        [85, 'https://example.com/a b'],
+    ]) {
+        const invalidUrlReply = await callTool(port, accessToken, id, 'open_url', { url: invalidUrl });
+        assert.equal(invalidUrlReply.result.isError, true);
+        assert.match(toolText(invalidUrlReply), /HTTP\/HTTPS|válida|valid|espacios|usuario|contraseña/u);
+    }
+
     for (const [id, name, argumentsValue] of [
         [40, 'run_command', { command: 'Write-Output preview-only', shell: 'powershell', cwd: 'workspace:/', timeoutMs: 1_000 }],
         [41, 'launch_application', { executable: 'notepad.exe', cwd: 'workspace:/' }],
@@ -172,6 +193,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         [46, 'control_mouse', { action: 'move', x: 10, y: 20 }],
         [47, 'type_text', { text: 'preview-only' }],
         [48, 'press_hotkey', { keys: ['CTRL', 'L'] }],
+        [49, 'open_url', { url: 'https://example.com' }],
     ]) {
         const previewReply = await callTool(port, accessToken, id, name, argumentsValue);
         assert.equal(previewReply.result.isError, undefined, `${name} preview failed: ${toolText(previewReply)}`);
@@ -180,6 +202,15 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         assert.equal(preview.requiresConfirmation, true);
         assert.equal(typeof preview.confirmationToken, 'string');
     }
+
+    const browserProposal = JSON.parse(toolText(await callTool(port, accessToken, 86, 'open_url', { url: 'https://example.com' })));
+    const tamperedBrowserConfirmation = await callTool(port, accessToken, 87, 'open_url', {
+        url: 'https://example.org',
+        confirmationToken: browserProposal.confirmationToken,
+        confirmed: true,
+    });
+    assert.equal(tamperedBrowserConfirmation.result.isError, true);
+    assert.match(toolText(tamperedBrowserConfirmation), /CONFIRMATION_INVALID|confirmación|confirmation/u);
 
     const directoryProposalReply = await callTool(port, accessToken, 7, 'create_workspace_directory', { root: 'desktop', path: 'desktop:/site' });
     const directoryProposal = JSON.parse(toolText(directoryProposalReply));

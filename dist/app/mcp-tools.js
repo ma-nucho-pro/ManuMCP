@@ -13,6 +13,17 @@ const MAX_ARGUMENT_CHARS = 2048;
 const MAX_TYPED_TEXT_CHARS = 4096;
 const MAX_CONFIRMATION_SUMMARY_CHARS = 4096;
 const DEFAULT_COMMAND_SHELL = process.platform === "win32" ? "powershell" : "sh";
+const browserUrlSchema = z.string()
+    .min(1)
+    .max(8192)
+    .url("La URL no es válida.")
+    .refine((value) => value === value.trim() && !/\s/u.test(value), "La URL no puede contener espacios ni saltos de línea.")
+    .refine((value) => {
+    const parsed = new URL(value);
+    const authorityStart = value.indexOf("://") + 3;
+    const authority = value.slice(authorityStart).split(/[/?#]/u, 1)[0] ?? "";
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && authority.includes("@") === false && parsed.username.length === 0 && parsed.password.length === 0;
+}, "Solo se permiten URLs HTTP/HTTPS sin información de usuario ni contraseña.");
 const DESKTOP_COMPATIBILITY_ALIASES = new Set(["desktop", "escritorio", "workspace"]);
 const DOWNLOADS_ALIASES = new Set(["downloads", "descargas"]);
 const PC_ALIASES = new Set(["pc", "computer", "ordenador", "computer-profile"]);
@@ -543,6 +554,18 @@ export function registerManuMcpTools(server, services) {
             return failure(error);
         }
     });
+    server.registerTool("open_url", {
+        title: "Open a URL in the default browser",
+        description: "Abre una URL HTTP/HTTPS en el navegador predeterminado de Windows, macOS o Linux. No acepta rutas de archivos, esquemas de código ni credenciales incrustadas; requiere vista previa y confirmación.",
+        inputSchema: {
+            url: browserUrlSchema,
+            confirmationToken: confirmationSchema,
+            confirmed: z.boolean().default(false),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    }, async (args, extra) => controlAction(services, extra, "open_url", {
+        url: args.url,
+    }, `Abrir ${args.url} en el navegador predeterminado.`, args.confirmationToken, args.confirmed, () => services.system.openUrl(args.url)));
     server.registerTool("list_processes", {
         title: "List computer processes",
         description: "Consulta los procesos activos de Windows o macOS y devuelve PID, nombre y memoria. No modifica nada.",

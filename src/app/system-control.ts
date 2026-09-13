@@ -9,6 +9,7 @@ const MAX_COMMAND_OUTPUT_BYTES = 128 * 1024;
 const MAX_SCREEN_OUTPUT_BYTES = 12 * 1024 * 1024;
 const MAX_PROCESS_COUNT = 500;
 const WINDOWS_POWERSHELL = "System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const WINDOWS_EXPLORER = path.join(process.env.SystemRoot?.trim() || "C:\\Windows", "explorer.exe");
 const MAC_OSASCRIPT = "/usr/bin/osascript";
 const MAC_SCREENCAPTURE = "/usr/sbin/screencapture";
 
@@ -342,7 +343,7 @@ export class SystemControl {
 
     public async openItem(args: { target: string; signal?: AbortSignal }): Promise<{ ok: true; target: string; pid: number | null }> {
         if (process.platform === "win32") {
-            const result = await this.launchApplication({ executable: "explorer.exe", arguments: [args.target], cwd: this.#config.pcPath });
+            const result = await this.launchApplication({ executable: WINDOWS_EXPLORER, arguments: [args.target], cwd: this.#config.pcPath });
             return { ok: true, target: args.target, pid: result.pid };
         }
         const executable = process.platform === "darwin" ? "/usr/bin/open" : "xdg-open";
@@ -350,6 +351,18 @@ export class SystemControl {
         if (result.exitCode !== 0)
             throw new TunnelGPTError("INTERNAL_ERROR", "El sistema no pudo abrir el archivo o carpeta.", { output: `${result.stdout}\n${result.stderr}`.trim().slice(0, 2048) });
         return { ok: true, target: args.target, pid: null };
+    }
+
+    public async openUrl(url: string): Promise<{ ok: true; url: string; pid: number | null }> {
+        if (process.platform === "win32") {
+            const result = await this.launchApplication({ executable: WINDOWS_EXPLORER, arguments: [url], cwd: this.#config.pcPath });
+            return { ok: true, url, pid: result.pid };
+        }
+        const executable = process.platform === "darwin" ? "/usr/bin/open" : "xdg-open";
+        const result = await this.runExecutable(executable, [url], false);
+        if (result.exitCode !== 0)
+            throw new TunnelGPTError("INTERNAL_ERROR", "El sistema no pudo abrir la URL en el navegador predeterminado.", { output: `${result.stdout}\n${result.stderr}`.trim().slice(0, 2048) });
+        return { ok: true, url, pid: null };
     }
 
     public async listProcesses(filter: string | undefined, maxEntries: number): Promise<{ ok: true; processes: readonly ProcessInfo[]; truncated: boolean }> {

@@ -1,5 +1,10 @@
 # Changes
 
+## 1.5.1
+
+- Add the confirmed `open_url` tool for opening HTTP/HTTPS pages in the default browser.
+- Document that browser navigation is combined with the desktop window, screen and input tools, while the MCP client retains its own capability and safety policy.
+
 ## 1.5.0
 
 - Add an idempotent `configure-clients.mjs` helper for Codex, Claude Code, Gemini CLI and Cursor.

@@ -78,6 +78,11 @@ export declare class SystemControl {
         target: string;
         pid: number | null;
     }>;
+    openUrl(url: string): Promise<{
+        ok: true;
+        url: string;
+        pid: number | null;
+    }>;
     listProcesses(filter: string | undefined, maxEntries: number): Promise<{
         ok: true;
         processes: readonly ProcessInfo[];
