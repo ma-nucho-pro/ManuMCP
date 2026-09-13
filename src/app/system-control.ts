@@ -681,10 +681,11 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public static class ManuMcpKeyboard {
   [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
-  [StructLayout(LayoutKind.Explicit)] struct INPUTUNION { [FieldOffset(0)] public KEYBDINPUT ki; }
+  [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
+  [StructLayout(LayoutKind.Explicit)] struct INPUTUNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
   [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public INPUTUNION u; }
   [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
-  public static void Unicode(string value) { var inputs = new List<INPUT>(); foreach (char character in value) { inputs.Add(new INPUT { type = 1, u = new INPUTUNION { ki = new KEYBDINPUT { wScan = character, dwFlags = 0x0004u } } }); inputs.Add(new INPUT { type = 1, u = new INPUTUNION { ki = new KEYBDINPUT { wScan = character, dwFlags = 0x0004u | 0x0002u } } }); } if (inputs.Count > 0) SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT))); }
+  public static void Unicode(string value) { var inputs = new List<INPUT>(); foreach (char character in value) { inputs.Add(new INPUT { type = 1, u = new INPUTUNION { ki = new KEYBDINPUT { wScan = character, dwFlags = 0x0004u } } }); inputs.Add(new INPUT { type = 1, u = new INPUTUNION { ki = new KEYBDINPUT { wScan = character, dwFlags = 0x0004u | 0x0002u } } }); } if (inputs.Count > 0) { var sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT))); if (sent != (uint)inputs.Count) throw new InvalidOperationException($"SendInput solo aceptó {sent} de {inputs.Count} entrada(s); error {Marshal.GetLastWin32Error()}."); } }
 }
 '@
 $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedText}'))
@@ -711,11 +712,12 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public static class ManuMcpHotkey {
   [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
-  [StructLayout(LayoutKind.Explicit)] struct INPUTUNION { [FieldOffset(0)] public KEYBDINPUT ki; }
+  [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public UIntPtr dwExtraInfo; }
+  [StructLayout(LayoutKind.Explicit)] struct INPUTUNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
   [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public INPUTUNION u; }
   [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
   static INPUT Key(ushort value, uint flags) => new INPUT { type = 1, u = new INPUTUNION { ki = new KEYBDINPUT { wVk = value, dwFlags = flags } } };
-  public static void Combo(ushort[] values) { var inputs = new List<INPUT>(); foreach (var value in values) inputs.Add(Key(value, 0)); for (int index = values.Length - 1; index >= 0; index--) inputs.Add(Key(values[index], 0x0002u)); SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT))); }
+  public static void Combo(ushort[] values) { var inputs = new List<INPUT>(); foreach (var value in values) inputs.Add(Key(value, 0)); for (int index = values.Length - 1; index >= 0; index--) inputs.Add(Key(values[index], 0x0002u)); var sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT))); if (sent != (uint)inputs.Count) throw new InvalidOperationException($"SendInput solo aceptó {sent} de {inputs.Count} entrada(s); error {Marshal.GetLastWin32Error()}."); }
 }
 '@
 [ManuMcpHotkey]::Combo([ushort[]]@(${keyValues}))`;
