@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$InstallDirectory = (Join-Path ([Environment]::GetFolderPath("UserProfile")) "ManuMCP"),
-    [string]$RepositoryUrl = "https://github.com/ma-nucho-pro/ManuMCP.git"
+    [string]$RepositoryUrl = "https://github.com/ma-nucho-pro/ManuMCP.git",
+    [string]$Clients = "auto",
+    [switch]$OpenChatGPT
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,4 +21,14 @@ if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
     throw "No se encontró el instalador de ManuMCP: $installer"
 }
 & $installer
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$node = (Get-Command node -ErrorAction Stop).Source
+$configurator = Join-Path $InstallDirectory "scripts\configure-clients.mjs"
+if (-not (Test-Path -LiteralPath $configurator -PathType Leaf)) {
+    throw "No se encontró el configurador de clientes de ManuMCP: $configurator"
+}
+$configuratorArgs = @($configurator, "--client", $Clients)
+if ($OpenChatGPT) { $configuratorArgs += "--open-chatgpt" }
+& $node @configuratorArgs
 exit $LASTEXITCODE

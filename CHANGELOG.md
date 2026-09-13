@@ -1,5 +1,12 @@
 # Changes
 
+## 1.5.0
+
+- Add an idempotent `configure-clients.mjs` helper for Codex, Claude Code, Gemini CLI and Cursor.
+- Add one-command agent bootstrap options to configure detected local clients and open the ChatGPT web settings page.
+- Preserve existing Cursor MCP servers and create a timestamped backup before updating the `manumcp` entry.
+- Document the complete agent-driven flow, including the browser authorization boundary for ChatGPT accounts.
+
 ## 1.4.0
 
 - Make the local agent cross-platform for Windows, macOS and POSIX command/process workflows.

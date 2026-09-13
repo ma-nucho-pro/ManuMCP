@@ -1,7 +1,7 @@
 {
   "name": "manumcp",
-  "version": "1.4.0",
-  "description": "Cross-platform local MCP agent for ChatGPT, Codex, Claude Code, Gemini CLI and Cursor: whole-computer files, apps, screens, processes and confirmed commands.",
+  "version": "1.5.0",
+  "description": "Cross-platform local MCP agent with one-command setup for ChatGPT web, Codex, Claude Code, Gemini CLI and Cursor: whole-computer files, apps, screens, processes and confirmed commands.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -32,6 +32,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/app/server.js",
     "start:stdio": "node dist/app/server.js --stdio",
+    "configure-clients": "node scripts/configure-clients.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "check": "npm run typecheck && npm test",
     "verify-package": "node scripts/verify-package.mjs"

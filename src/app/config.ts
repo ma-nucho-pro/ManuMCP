@@ -270,7 +270,7 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
     };
     return {
         name: "ManuMCP",
-        version: "1.4.0",
+        version: "1.5.0",
         mode,
         workspacePath,
         workspaceAlias: "workspace",

@@ -90,6 +90,9 @@ Para que ChatGPT web llegue a ese agente desde fuera de la red local hace falta 
 - Un túnel Secure MCP de OpenAI creado y asociado al workspace correcto, más el `tunnel-client` oficial.
 - La app MCP debe actualizarse después de cambiar el catálogo de herramientas.
 
+> [!NOTE]
+> Instalar ManuMCP en Codex, Claude Code, Gemini CLI o Cursor no instala automáticamente una app dentro de tu cuenta de ChatGPT: son configuraciones distintas. El instalador puede preparar el agente local y los clientes MCP detectados; la parte de ChatGPT web debe completarse en el navegador con la cuenta propietaria y su autorización.
+
 ## Instalación rápida
 
 ### Windows
@@ -125,6 +128,12 @@ Instalación desde una terminal sin clonar antes:
 & ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-windows.ps1).Content))
 ~~~
 
+Para que un agente prepare también los clientes MCP instalados y abra la pantalla de configuración de ChatGPT web:
+
+~~~powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-windows.ps1).Content)) -Clients auto -OpenChatGPT
+~~~
+
 Si una ruta llamada `ManuMCP` ya existe y no es un repositorio Git, el bootstrap se detiene y no la sobrescribe. Para máxima trazabilidad, clona el repositorio y ejecuta el instalador visible.
 
 ### macOS y Linux
@@ -149,6 +158,12 @@ También puedes usar el bootstrap:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-unix.sh)"
 ~~~
 
+Para que el bootstrap configure también los clientes MCP detectados y abra ChatGPT web:
+
+~~~bash
+MANUMCP_CLIENTS=auto MANUMCP_OPEN_CHATGPT=1 bash -c "$(curl -fsSL https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-unix.sh)"
+~~~
+
 El bootstrap no sobrescribe una carpeta existente que no sea un repositorio Git. Si necesitas una raíz más estrecha:
 
 ~~~bash
@@ -163,19 +178,59 @@ curl -fsS http://127.0.0.1:8787/healthz
 
 La respuesta debe incluir `ok: true`, `pc:/ (raíz completa del equipo)` y el transporte `http`.
 
+## Instalación completa guiada por una IA
+
+El flujo recomendado para Codex, Claude Code, Gemini CLI, Cursor u otro agente con terminal es:
+
+1. Leer este README completo y detectar el sistema operativo, el cliente MCP instalado y si el cliente tiene navegador/computer-use.
+2. Ejecutar el bootstrap del sistema operativo. El bootstrap instala dependencias del proyecto, compila `dist`, crea el arranque del agente, comprueba `/healthz` y ejecuta `configure-clients.mjs --client auto`.
+3. Si el cliente no estaba instalado, conservar el comando stdio y mostrarlo como configuración pendiente; no inventar una instalación ni reemplazar otro cliente.
+4. Si el cliente ya tenía una entrada llamada `manumcp`, dejarla intacta o usar `--replace` solo cuando el usuario pidió actualizarla. Cursor conserva los demás servidores y crea un respaldo antes de modificar su JSON.
+5. Si el agente tiene navegador/computer-use, abrir `https://chatgpt.com/#settings/Apps`, comprobar que la cuenta y el workspace son los del propietario, y completar el flujo de Developer mode: crear o actualizar la app, seleccionar el túnel de ManuMCP, usar **Scan Tools** y guardar. Si la app ya existe, pulsar **Actualizar/Refresh** para redescubrir el catálogo.
+6. Si ChatGPT solicita inicio de sesión, una clave, autorización de cuenta/workspace o permisos del sistema, detenerse exactamente en ese paso para que el propietario lo haga. El agente nunca debe pedir, copiar, registrar ni subir contraseñas, cookies o claves privadas.
+7. Verificar por separado el cliente local con `tools/list` y ChatGPT web con `get_device_health`, `list_storage_volumes` y una lectura pequeña de `pc:/`. No declarar la instalación completa si una de esas comprobaciones falla.
+
+El comando unificado, después de clonar el repositorio, es:
+
+~~~text
+npm run configure-clients -- --client auto --open-chatgpt
+~~~
+
+Para actualizar únicamente la entrada `manumcp` de los clientes que ya la tienen:
+
+~~~text
+npm run configure-clients -- --client auto --replace
+~~~
+
+Para que un agente revise las acciones sin modificar nada:
+
+~~~text
+npm run configure-clients -- --client auto --dry-run
+~~~
+
+El configurador soporta `codex`, `claude`, `gemini`, `cursor`, `auto` y `none`. Con `auto` omite los clientes que no están instalados y devuelve un resumen JSON para que el agente sepa qué quedó configurado, qué ya estaba presente y qué requiere una acción manual.
+
 ### Prompt de instalación para otro agente
 
 Puedes pegar este prompt en un agente que tenga terminal y, si hace falta, navegador/computer-use:
 
 ~~~text
-Instala y verifica ManuMCP en este ordenador. Detecta Windows, macOS o Linux; clona https://github.com/ma-nucho-pro/ManuMCP si no está presente; ejecuta el instalador correcto; espera a que /healthz responda ok:true; conecta el servidor MCP por stdio en este cliente; y prueba get_device_health, list_storage_volumes y un run_command de solo lectura mediante vista previa y confirmación. Usa pc:/ para la raíz completa, workspace:/ para Escritorio y downloads:/ para Descargas. Si el cliente dispone de navegador o computer-use, úsalo para completar la configuración visual y comprobar la conexión. No declares éxito hasta enseñar los resultados de las pruebas. Si una credencial, permiso del sistema o autorización de la cuenta es necesaria, detente en ese paso y explica exactamente qué debe aceptar el usuario.
+Instala ManuMCP completamente en este ordenador y verifica cada etapa. Detecta Windows, macOS o Linux; clona https://github.com/ma-nucho-pro/ManuMCP si no está presente; ejecuta el bootstrap o instalador correcto; espera a que /healthz responda ok:true; ejecuta `node scripts/configure-clients.mjs --client auto --open-chatgpt`; y configura solo los clientes MCP que realmente estén instalados. Usa pc:/ para la raíz completa, workspace:/ para Escritorio y downloads:/ para Descargas. En el cliente local verifica `tools/list` y llama en solo lectura a get_device_health y list_storage_volumes. Después, si dispones de navegador o computer-use, abre https://chatgpt.com/#settings/Apps, usa la cuenta y workspace del propietario, crea o actualiza la app/túnel ManuMCP, pulsa Scan Tools/Actualizar y prueba desde un chat `get_device_health`, `list_storage_volumes` y una lectura pequeña de pc:/. No declares éxito hasta enseñar los resultados de la instalación local, la configuración de cada cliente y la prueba remota. Nunca pidas ni copies contraseñas, cookies, claves privadas o tokens a archivos; si ChatGPT requiere inicio de sesión, autorización, una clave del túnel, Developer mode o permisos de macOS/Windows, detente en ese paso y explica exactamente qué debe aceptar o introducir el propietario.
 ~~~
 
-Ese prompt automatiza la instalación del servidor y la verificación, pero no debe pedir a un agente que falsifique permisos, eleve UAC, desactive protecciones o copie secretos a un repositorio.
+Ese prompt automatiza el servidor, el arranque y la configuración de los clientes locales. La parte de ChatGPT web no puede completarse de forma legítima con un comando de terminal porque requiere la sesión y la autorización del propietario; un agente con computer-use sí puede navegar hasta el formulario y dejarlo preparado, pero debe parar para el inicio de sesión o la aprobación que corresponda. No debe falsificar permisos, elevar UAC, desactivar protecciones ni copiar secretos a un repositorio.
 
 ## Configurar el cliente MCP local
 
-El transporte stdio es la opción para Codex, Claude Code, Gemini CLI, Cursor y cualquier otro cliente compatible. El comando directo mínimo es:
+El transporte stdio es la opción para Codex, Claude Code, Gemini CLI, Cursor y cualquier otro cliente compatible. Después de instalar el agente, la forma automática es:
+
+~~~text
+npm run configure-clients -- --client auto
+~~~
+
+Ese comando detecta los clientes que existen en el `PATH`, registra `manumcp` con el wrapper persistente y devuelve un resumen JSON. El modo `--replace` actualiza solo la entrada de ManuMCP; el modo `--dry-run` no ejecuta ni escribe nada. Si el cliente no ofrece una CLI detectable, usa la configuración manual de esta sección.
+
+El comando directo mínimo es:
 
 ~~~text
 node /ruta/ManuMCP/dist/app/server.js --stdio
@@ -311,6 +366,14 @@ La clave de runtime y el identificador del túnel son secretos/configuración de
 4. Selecciona el túnel asociado a ese workspace y completa la autorización.
 5. Si cambiaste herramientas, pulsa **Actualizar/Refresh** para que ChatGPT reciba el catálogo nuevo.
 6. Prueba `get_device_health`, que incluye el inventario de unidades, después `list_storage_volumes` o su alias `get_storage_volumes` y finalmente una operación pequeña.
+
+#### Qué puede hacer un agente con navegador
+
+Un agente que tenga browser-use o computer-use puede abrir la página de Apps, comprobar el estado de la app y pulsar **Crear**, **Scan Tools**, **Actualizar/Refresh** y **Guardar**. También puede seleccionar `ManuMCP` en un chat y ejecutar las pruebas de solo lectura. No puede ni debe iniciar sesión con credenciales que el usuario le entregue, leer cookies, recuperar una clave oculta del navegador o aprobar permisos en nombre del propietario.
+
+Cuando el navegador muestre un formulario de inicio de sesión, una autorización del workspace, una clave de `CONTROL_PLANE_API_KEY`, una aprobación del túnel o un permiso del sistema operativo, el flujo queda pausado para que el propietario lo complete. Después el agente puede continuar con la sincronización y la prueba. Esto es una condición de seguridad y de la cuenta, no un fallo del instalador.
+
+Un agente sin navegador no puede instalar una app dentro de ChatGPT solo ejecutando comandos locales: puede dejar preparado el agente, el túnel y la configuración stdio, e imprimir el enlace `https://chatgpt.com/#settings/Apps` para que el propietario termine la conexión.
 
 Para usarlo desde un teléfono, abre ChatGPT web en el navegador y comprueba la disponibilidad de tu cuenta. La documentación actual de OpenAI indica que las apps MCP personalizadas se conectan desde la web y no desde la aplicación móvil nativa; el túnel puede seguir corriendo en tu PC, pero el cliente móvil nativo no se debe presentar como compatible sin soporte oficial.
 
