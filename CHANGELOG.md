@@ -1,5 +1,10 @@
 # Changes
 
+## 1.5.3
+
+- Make the Windows keyboard injection source compatible with the Windows PowerShell 5.1 C# compiler.
+- Add native confirmation coverage for a harmless keyboard modifier in the Windows integration test.
+
 ## 1.5.2
 
 - Harden `open_url` validation and classify it as a confirmed, non-destructive open-world action.

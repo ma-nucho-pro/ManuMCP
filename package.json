@@ -1,6 +1,6 @@
 {
   "name": "manumcp",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Cross-platform local MCP agent with one-command setup for ChatGPT web, Codex, Claude Code, Gemini CLI and Cursor: whole-computer files, apps, screens, processes and confirmed commands.",
   "license": "MIT",
   "type": "module",

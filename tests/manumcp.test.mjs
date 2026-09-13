@@ -472,6 +472,17 @@ test('Windows control tools reach the native desktop only through confirmed acti
     assert.equal(typePreview.applied, false);
     const hotkeyPreview = JSON.parse(toolText(await callTool(port, accessToken, 61, 'press_hotkey', { keys: ['CTRL', 'L'] })));
     assert.equal(hotkeyPreview.applied, false);
+    const activeWindow = windows.windows.find((window) => window.active);
+    if (activeWindow !== undefined) {
+        const harmlessHotkeyPreview = JSON.parse(toolText(await callTool(port, accessToken, 62, 'press_hotkey', { keys: ['SHIFT'] })));
+        const harmlessHotkeyApplied = JSON.parse(toolText(await callTool(port, accessToken, 63, 'press_hotkey', {
+            keys: ['SHIFT'],
+            confirmationToken: harmlessHotkeyPreview.confirmationToken,
+            confirmed: true,
+        })));
+        assert.equal(harmlessHotkeyApplied.ok, true);
+        assert.deepEqual(harmlessHotkeyApplied.keys, [16]);
+    }
 });
 
 test('POSIX control tools run commands and report the configured computer volume', { skip: process.platform === 'win32' ? 'POSIX-only control test.' : false }, async (t) => {
