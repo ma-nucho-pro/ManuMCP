@@ -470,8 +470,34 @@ using System;
 using System.Runtime.InteropServices;
 public static class ManuMcpWindowFocus {
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr handle);
-  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr handle, int command);
-  public static bool Focus(long value) { var handle = new IntPtr(value); ShowWindow(handle, 5); return SetForegroundWindow(handle); }
+  [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr handle, int command);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr handle);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr handle, IntPtr processId);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint sourceThread, uint targetThread, bool attach);
+  public static bool Focus(long value) {
+    var handle = new IntPtr(value);
+    if (handle == IntPtr.Zero) return false;
+    var foreground = GetForegroundWindow();
+    var currentThread = GetCurrentThreadId();
+    var foregroundThread = foreground == IntPtr.Zero ? 0u : GetWindowThreadProcessId(foreground, IntPtr.Zero);
+    var targetThread = GetWindowThreadProcessId(handle, IntPtr.Zero);
+    var attachedForeground = false;
+    var attachedTarget = false;
+    try {
+      if (foregroundThread != 0 && foregroundThread != currentThread) attachedForeground = AttachThreadInput(currentThread, foregroundThread, true);
+      if (targetThread != 0 && targetThread != currentThread && targetThread != foregroundThread) attachedTarget = AttachThreadInput(currentThread, targetThread, true);
+      ShowWindowAsync(handle, 5);
+      BringWindowToTop(handle);
+      SetForegroundWindow(handle);
+      return GetForegroundWindow() == handle;
+    }
+    finally {
+      if (attachedTarget) AttachThreadInput(currentThread, targetThread, false);
+      if (attachedForeground) AttachThreadInput(currentThread, foregroundThread, false);
+    }
+  }
 }
 '@
 if (-not [ManuMcpWindowFocus]::Focus([long]${handle})) { throw 'No se pudo activar la ventana solicitada.' }

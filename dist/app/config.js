@@ -233,7 +233,7 @@ export async function loadConfig(mode) {
     };
     return {
         name: "ManuMCP",
-        version: "1.5.1",
+        version: "1.5.2",
         mode,
         workspacePath,
         workspaceAlias: "workspace",

@@ -1,5 +1,11 @@
 # Changes
 
+## 1.5.2
+
+- Harden `open_url` validation and classify it as a confirmed, non-destructive open-world action.
+- Make Windows window focusing more reliable across foreground-lock boundaries.
+- Use an absolute Windows Explorer path for file and URL opening.
+
 ## 1.5.1
 
 - Add the confirmed `open_url` tool for opening HTTP/HTTPS pages in the default browser.
