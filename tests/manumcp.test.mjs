@@ -348,7 +348,13 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.match(toolText(replay), /CONFIRMATION_INVALID/u);
 });
 
-test('Windows control tools reach the native desktop only through confirmed actions', { skip: process.platform !== 'win32' ? 'Windows-only native control test.' : false }, async (t) => {
+test('Windows control tools reach the native desktop only through confirmed actions', {
+    skip: process.platform !== 'win32'
+        ? 'Windows-only native control test.'
+        : process.env.GITHUB_ACTIONS === 'true'
+            ? 'Hosted GitHub Windows runners do not guarantee an interactive desktop session.'
+            : false,
+}, async (t) => {
     const directory = await createTestDirectory('windows-control');
     const workspaceDirectory = path.join(directory, 'Desktop');
     const downloadsDirectory = path.join(directory, 'downloads');
