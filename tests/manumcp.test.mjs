@@ -102,7 +102,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.deepEqual(healthData.authorizedRoots, [
         'workspace:/ (Escritorio)',
         'downloads:/ (Descargas)',
-        'pc:/ (raíz configurada del PC)',
+        'pc:/ (raíz completa del equipo)',
     ]);
     const unauthorized = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'GET' });
     assert.equal(unauthorized.status, 401);
@@ -116,6 +116,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     const tools = await callMcp(port, accessToken, 2, 'tools/list');
     assert.deepEqual(tools.result.tools.map((tool) => tool.name), [
         'get_device_health',
+        'list_storage_volumes',
         'list_workspace',
         'read_workspace_file',
         'search_workspace',
@@ -153,6 +154,9 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     const pcReply = await callTool(port, accessToken, 5, 'list_workspace', { root: 'computer', path: 'computer:/' });
     assert.equal(pcReply.result.isError, undefined);
     assert.equal(JSON.parse(toolText(pcReply)).root, 'pc:/');
+    const volumesReply = await callTool(port, accessToken, 6, 'list_storage_volumes');
+    assert.equal(volumesReply.result.isError, undefined);
+    assert.ok(JSON.parse(toolText(volumesReply)).volumes.some((volume) => volume.alias === 'pc'));
 
     for (const [id, name, argumentsValue] of [
         [40, 'run_command', { command: 'Write-Output preview-only', shell: 'powershell', cwd: 'workspace:/', timeoutMs: 1_000 }],
@@ -173,10 +177,10 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         assert.equal(typeof preview.confirmationToken, 'string');
     }
 
-    const directoryProposalReply = await callTool(port, accessToken, 6, 'create_workspace_directory', { root: 'desktop', path: 'desktop:/site' });
+    const directoryProposalReply = await callTool(port, accessToken, 7, 'create_workspace_directory', { root: 'desktop', path: 'desktop:/site' });
     const directoryProposal = JSON.parse(toolText(directoryProposalReply));
     assert.equal(directoryProposal.applied, false);
-    const directoryApplied = await callTool(port, accessToken, 7, 'create_workspace_directory', {
+    const directoryApplied = await callTool(port, accessToken, 8, 'create_workspace_directory', {
         root: 'desktop',
         path: 'desktop:/site',
         confirmationToken: directoryProposal.confirmationToken,
@@ -184,23 +188,23 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     });
     assert.equal(JSON.parse(toolText(directoryApplied)).applied, true);
 
-    const downloadsProposalReply = await callTool(port, accessToken, 8, 'create_workspace_directory', {
+    const downloadsProposalReply = await callTool(port, accessToken, 9, 'create_workspace_directory', {
         root: 'downloads',
         path: 'downloads:/download-site',
     });
     const downloadsProposal = JSON.parse(toolText(downloadsProposalReply));
-    const downloadsApplied = await callTool(port, accessToken, 9, 'create_workspace_directory', {
+    const downloadsApplied = await callTool(port, accessToken, 10, 'create_workspace_directory', {
         root: 'downloads',
         path: 'downloads:/download-site',
         confirmationToken: downloadsProposal.confirmationToken,
         confirmed: true,
     });
     assert.equal(JSON.parse(toolText(downloadsApplied)).applied, true);
-    const naturalDownloadsProposalReply = await callTool(port, accessToken, 10, 'create_workspace_directory', {
+    const naturalDownloadsProposalReply = await callTool(port, accessToken, 11, 'create_workspace_directory', {
         path: 'Downloads/natural-download-site',
     });
     const naturalDownloadsProposal = JSON.parse(toolText(naturalDownloadsProposalReply));
-    const naturalDownloadsApplied = await callTool(port, accessToken, 11, 'create_workspace_directory', {
+    const naturalDownloadsApplied = await callTool(port, accessToken, 12, 'create_workspace_directory', {
         path: 'Downloads/natural-download-site',
         confirmationToken: naturalDownloadsProposal.confirmationToken,
         confirmed: true,
@@ -218,12 +222,12 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(naturalPcReply.result.isError, undefined);
     assert.equal(JSON.parse(toolText(naturalPcReply)).root, 'pc:/Documents');
 
-    const pcProposalReply = await callTool(port, accessToken, 12, 'create_workspace_directory', {
+    const pcProposalReply = await callTool(port, accessToken, 13, 'create_workspace_directory', {
         root: 'pc',
         path: 'pc:/profile-site',
     });
     const pcProposal = JSON.parse(toolText(pcProposalReply));
-    const pcApplied = await callTool(port, accessToken, 13, 'create_workspace_directory', {
+    const pcApplied = await callTool(port, accessToken, 14, 'create_workspace_directory', {
         root: 'pc',
         path: 'pc:/profile-site',
         confirmationToken: pcProposal.confirmationToken,
@@ -232,11 +236,11 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(JSON.parse(toolText(pcApplied)).applied, true);
     await fs.access(path.join(pcDirectory, 'profile-site'));
 
-    const absolutePcProposalReply = await callTool(port, accessToken, 14, 'create_workspace_directory', {
+    const absolutePcProposalReply = await callTool(port, accessToken, 15, 'create_workspace_directory', {
         path: path.join(pcDirectory, 'absolute-site'),
     });
     const absolutePcProposal = JSON.parse(toolText(absolutePcProposalReply));
-    const absolutePcApplied = await callTool(port, accessToken, 15, 'create_workspace_directory', {
+    const absolutePcApplied = await callTool(port, accessToken, 16, 'create_workspace_directory', {
         path: path.join(pcDirectory, 'absolute-site'),
         confirmationToken: absolutePcProposal.confirmationToken,
         confirmed: true,
@@ -288,7 +292,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(absoluteTraversalReply.result.isError, true);
     assert.match(toolText(absoluteTraversalReply), /PATH_TRAVERSAL/u);
 
-    const proposal = await callTool(port, accessToken, 16, 'create_workspace_file', {
+    const proposal = await callTool(port, accessToken, 17, 'create_workspace_file', {
         path: 'site/index.html',
         content: '<h1>ManuMCP</h1>\n<p>local file</p>\n',
     });
@@ -297,7 +301,7 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(proposalData.requiresConfirmation, true);
     await assert.rejects(fs.access(path.join(workspaceDirectory, 'site', 'index.html')), { code: 'ENOENT' });
 
-    const applied = await callTool(port, accessToken, 17, 'create_workspace_file', {
+    const applied = await callTool(port, accessToken, 18, 'create_workspace_file', {
         path: 'site/index.html',
         content: '<h1>ManuMCP</h1>\n<p>local file</p>\n',
         confirmationToken: proposalData.confirmationToken,
@@ -306,24 +310,24 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
     assert.equal(JSON.parse(toolText(applied)).applied, true);
     assert.equal(await fs.readFile(path.join(workspaceDirectory, 'site', 'index.html'), 'utf8'), '<h1>ManuMCP</h1>\n<p>local file</p>\n');
 
-    const read = await callTool(port, accessToken, 18, 'read_workspace_file', { path: 'site/index.html' });
+    const read = await callTool(port, accessToken, 19, 'read_workspace_file', { path: 'site/index.html' });
     const readData = JSON.parse(toolText(read));
     assert.equal(readData.text, '<h1>ManuMCP</h1>\n<p>local file</p>');
     assert.equal(readData.path, 'workspace:/site/index.html');
-    const search = await callTool(port, accessToken, 19, 'search_workspace', { query: 'ManuMCP' });
+    const search = await callTool(port, accessToken, 20, 'search_workspace', { query: 'ManuMCP' });
     assert.equal(JSON.parse(toolText(search)).matches[0].path, 'workspace:/site/index.html');
 
-    const traversal = await callTool(port, accessToken, 20, 'read_workspace_file', { path: '../outside.txt' });
+    const traversal = await callTool(port, accessToken, 21, 'read_workspace_file', { path: '../outside.txt' });
     assert.equal(traversal.result.isError, true);
     assert.match(toolText(traversal), /PATH_TRAVERSAL/u);
-    const secretProposal = await callTool(port, accessToken, 21, 'create_workspace_file', {
+    const secretProposal = await callTool(port, accessToken, 22, 'create_workspace_file', {
         path: 'secret.txt',
         content: 'api_key = "this-is-not-a-real-key-but-is-long"\n',
     });
     assert.equal(secretProposal.result.isError, true);
     assert.match(toolText(secretProposal), /SECRET_CONTENT_BLOCKED/u);
 
-    const secondProposal = await callTool(port, accessToken, 22, 'create_workspace_file', {
+    const secondProposal = await callTool(port, accessToken, 23, 'create_workspace_file', {
         path: 'one-time.txt',
         content: 'only once',
     });
@@ -334,8 +338,8 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         confirmationToken: secondData.confirmationToken,
         confirmed: true,
     };
-    assert.equal(JSON.parse(toolText(await callTool(port, accessToken, 23, 'create_workspace_file', secondApplyArgs))).applied, true);
-    const replay = await callTool(port, accessToken, 24, 'create_workspace_file', secondApplyArgs);
+    assert.equal(JSON.parse(toolText(await callTool(port, accessToken, 24, 'create_workspace_file', secondApplyArgs))).applied, true);
+    const replay = await callTool(port, accessToken, 25, 'create_workspace_file', secondApplyArgs);
     assert.equal(replay.result.isError, true);
     assert.match(toolText(replay), /CONFIRMATION_INVALID/u);
 });
@@ -427,6 +431,60 @@ test('Windows control tools reach the native desktop only through confirmed acti
     assert.equal(typePreview.applied, false);
     const hotkeyPreview = JSON.parse(toolText(await callTool(port, accessToken, 61, 'press_hotkey', { keys: ['CTRL', 'L'] })));
     assert.equal(hotkeyPreview.applied, false);
+});
+
+test('POSIX control tools run commands and report the configured computer volume', { skip: process.platform === 'win32' ? 'POSIX-only control test.' : false }, async (t) => {
+    const directory = await createTestDirectory('posix-control');
+    const workspaceDirectory = path.join(directory, 'Desktop');
+    const downloadsDirectory = path.join(directory, 'Downloads');
+    const pcDirectory = path.join(directory, 'computer');
+    const accessToken = 'integration-token-for-posix-control-1234567890';
+    const child = spawn(process.execPath, [path.join(process.cwd(), 'dist', 'app', 'server.js')], {
+        cwd: process.cwd(),
+        env: {
+            ...process.env,
+            MANUMCP_WORKSPACE: workspaceDirectory,
+            MANUMCP_DOWNLOADS: downloadsDirectory,
+            MANUMCP_PC_ROOT: pcDirectory,
+            MANUMCP_LOCAL_TOKEN: accessToken,
+            MANUMCP_CONFIRMATION_KEY: 'posix-control-confirmation-key',
+            MANUMCP_PORT: '0',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    t.after(async () => {
+        if (child.exitCode === null) {
+            child.kill('SIGTERM');
+            await once(child, 'exit');
+        }
+        await fs.rm(directory, { recursive: true, force: true });
+    });
+
+    const port = await waitForStartup(child);
+    const volumes = JSON.parse(toolText(await callTool(port, accessToken, 70, 'list_storage_volumes')));
+    assert.equal(volumes.volumes[0].alias, 'pc');
+    assert.equal(volumes.volumes[0].path, pcDirectory);
+    assert.equal(volumes.volumes[0].accessPath, 'pc:/');
+
+    const commandArguments = {
+        command: 'printf MANUMCP_POSIX_CONTROL_TEST',
+        shell: 'sh',
+        cwd: 'pc:/',
+        timeoutMs: 5_000,
+    };
+    const commandPreview = JSON.parse(toolText(await callTool(port, accessToken, 71, 'run_command', commandArguments)));
+    assert.equal(commandPreview.applied, false);
+    const commandApplied = JSON.parse(toolText(await callTool(port, accessToken, 72, 'run_command', {
+        ...commandArguments,
+        confirmationToken: commandPreview.confirmationToken,
+        confirmed: true,
+    })));
+    assert.equal(commandApplied.exitCode, 0);
+    assert.equal(commandApplied.stdout, 'MANUMCP_POSIX_CONTROL_TEST');
+    assert.equal(commandApplied.cwd, pcDirectory);
+
+    const processes = JSON.parse(toolText(await callTool(port, accessToken, 73, 'list_processes', { filter: 'node', maxEntries: 10 })));
+    assert.ok(Array.isArray(processes.processes));
 });
 
 test('ManuMCP also speaks MCP over stdio for a private tunnel client', async (t) => {

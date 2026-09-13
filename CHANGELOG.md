@@ -1,5 +1,14 @@
 # Changes
 
+## 1.4.0
+
+- Make the local agent cross-platform for Windows, macOS and POSIX command/process workflows.
+- Make `pc:/` default to the complete host filesystem root and discover mounted Windows drive letters as `pc-d:/`, `pc-f:/`, and similar aliases.
+- Add `list_storage_volumes` so clients can discover every mounted computer volume before choosing a path.
+- Add macOS desktop integration through JXA, CoreGraphics, `screencapture`, `open`, `ps` and `kill`.
+- Add portable Unix installers, launchd/systemd startup helpers and cross-platform tunnel stdio entrypoints.
+- Expand the public documentation for ChatGPT, Codex, Claude Code, Gemini CLI, Cursor and other standard MCP clients.
+
 ## 1.3.0
 
 - Add confirmed Windows command execution, application launching, process management and file/folder opening.

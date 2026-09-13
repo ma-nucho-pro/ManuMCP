@@ -46,7 +46,13 @@ if ([string]::IsNullOrWhiteSpace($env:MANUMCP_DOWNLOADS)) {
 }
 if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PC_ROOT)) {
     $configuredPcRoot = [string]$rootsConfig.pcRoot
-    $env:MANUMCP_PC_ROOT = if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) { $userProfile } else { $configuredPcRoot }
+    if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) {
+        $configuredPcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("Windows"))
+        if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) {
+            $configuredPcRoot = [IO.Path]::GetPathRoot($userProfile)
+        }
+    }
+    $env:MANUMCP_PC_ROOT = $configuredPcRoot
 }
 
 if (-not (Test-Path -LiteralPath $ClientPath -PathType Leaf)) {

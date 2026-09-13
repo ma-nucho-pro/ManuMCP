@@ -6,8 +6,8 @@ import type { FileAccessConfig, Profile } from "../core/file-access-config.js";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_OPERATION_TIMEOUT_MS = 30_000;
-// On Windows the default roots are the user's real Desktop, Downloads and
-// profile. The environment overrides remain available for narrower roots.
+// The default roots are the real Desktop, Downloads and the host filesystem
+// root. Environment overrides remain available for narrower roots.
 const DEFAULT_WORKSPACE_NAME = "Desktop";
 const DEFAULT_DOWNLOADS_NAME = "Downloads";
 const MAX_PORT = 65_535;
@@ -23,6 +23,9 @@ const PROTECTED_ROOT_SEGMENTS = new Set([
     "program files",
     "program files (x86)",
     "programdata",
+    "system",
+    "library",
+    "private",
     "windows",
 ]);
 
@@ -96,12 +99,42 @@ function downloadsFromEnvironment(): string {
     return assertSafeRoot("MANUMCP_DOWNLOADS", resolvedPath(env("MANUMCP_DOWNLOADS"), path.join(os.homedir(), DEFAULT_DOWNLOADS_NAME)));
 }
 
+function defaultComputerRoot(): string {
+    // path.parse() uses the host platform's path rules. This yields C:\ on
+    // Windows and / on macOS/Linux, including every mounted Windows volume
+    // when the runtime later discovers them.
+    return path.parse(os.homedir()).root;
+}
+
 function pcRootFromEnvironment(): string {
-    // This is the whole Windows user profile by default. It covers Desktop,
-    // Downloads, Documents and other user-owned folders without exposing
-    // Windows, Program Files or other users by accident. A deliberate
-    // MANUMCP_PC_ROOT override can choose a different authorized directory.
-    return assertSafeRoot("MANUMCP_PC_ROOT", resolvedPath(env("MANUMCP_PC_ROOT"), os.homedir()));
+    // The default is the complete host filesystem root. File tools still apply
+    // their non-reducible deny policy, while commands run with the user's OS
+    // permissions. A deliberate MANUMCP_PC_ROOT override can narrow it.
+    return assertSafeRoot("MANUMCP_PC_ROOT", resolvedPath(env("MANUMCP_PC_ROOT"), defaultComputerRoot()));
+}
+
+function isWindowsDriveRoot(value: string): boolean {
+    return process.platform === "win32" && /^[A-Za-z]:[\\/]$/u.test(value);
+}
+
+async function discoverWindowsVolumes(pcPath: string): Promise<readonly { alias: string; path: string }[]> {
+    if (!isWindowsDriveRoot(pcPath))
+        return [];
+    const roots: { alias: string; path: string }[] = [];
+    for (let code = "A".charCodeAt(0); code <= "Z".charCodeAt(0); code += 1) {
+        const letter = String.fromCharCode(code);
+        const volumePath = `${letter}:\\`;
+        try {
+            const stat = await fs.stat(volumePath);
+            if (!stat.isDirectory() || samePath(volumePath, pcPath))
+                continue;
+            roots.push({ alias: `pc-${letter.toLowerCase()}`, path: volumePath });
+        }
+        catch {
+            // Unmounted, inaccessible and optical drives are not authorized.
+        }
+    }
+    return roots;
 }
 
 async function ensureDirectory(value: string): Promise<void> {
@@ -155,6 +188,7 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
     await ensureDirectory(workspacePath);
     await ensureDirectory(downloadsPath);
     await ensureDirectory(pcPath);
+    const volumeRoots = await discoverWindowsVolumes(pcPath);
     const profile = profileFromEnvironment();
     const port = positiveInteger(env("MANUMCP_PORT"), DEFAULT_PORT, MAX_PORT, true);
     const operationTimeoutMs = positiveInteger(env("MANUMCP_OPERATION_TIMEOUT_MS"), DEFAULT_OPERATION_TIMEOUT_MS, 120_000);
@@ -170,6 +204,7 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
             { alias: "workspace", path: workspacePath },
             { alias: "downloads", path: downloadsPath },
             { alias: "pc", path: pcPath },
+            ...volumeRoots,
         ],
         additionalDenyPatterns: [
             "**/.manumcp/**",
@@ -180,6 +215,12 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
             "**/AppData/**",
             "**/Windows",
             "**/Windows/**",
+            "**/System",
+            "**/System/**",
+            "**/Library",
+            "**/Library/**",
+            "**/private",
+            "**/private/**",
             "**/Program Files",
             "**/Program Files/**",
             "**/Program Files (x86)",
@@ -229,7 +270,7 @@ export async function loadConfig(mode: "http" | "stdio"): Promise<ManuMcpConfig>
     };
     return {
         name: "ManuMCP",
-        version: "1.3.0",
+        version: "1.4.0",
         mode,
         workspacePath,
         workspaceAlias: "workspace",

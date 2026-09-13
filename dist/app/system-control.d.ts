@@ -1,7 +1,8 @@
 import type { ManuMcpConfig } from "./config.js";
+export type CommandShell = "powershell" | "cmd" | "bash" | "zsh" | "sh";
 export interface CommandExecutionResult {
     readonly ok: true;
-    readonly shell: "powershell" | "cmd";
+    readonly shell: CommandShell;
     readonly command: string;
     readonly cwd: string;
     readonly exitCode: number | null;
@@ -18,6 +19,13 @@ export interface ProcessInfo {
     readonly name: string;
     readonly session?: string;
     readonly memory?: string;
+}
+export interface VolumeInfo {
+    readonly alias: string;
+    readonly name: string;
+    readonly path: string;
+    readonly accessPath: string;
+    readonly mounted: true;
 }
 export interface ScreenInfo {
     readonly index: number;
@@ -41,17 +49,12 @@ export interface ScreenCapture {
     readonly height: number;
     readonly screen: number | "all" | "primary";
 }
-interface ExecutableResult {
-    readonly stdout: string;
-    readonly stderr: string;
-    readonly exitCode: number | null;
-}
 export declare class SystemControl {
     #private;
     constructor(config: ManuMcpConfig);
     executeCommand(args: {
         command: string;
-        shell: "powershell" | "cmd";
+        shell: CommandShell;
         cwd: string;
         timeoutMs: number;
         signal?: AbortSignal;
@@ -85,6 +88,10 @@ export declare class SystemControl {
         pid: number;
         force: boolean;
         output: string;
+    }>;
+    listStorageVolumes(): Promise<{
+        ok: true;
+        volumes: readonly VolumeInfo[];
     }>;
     listWindows(): Promise<{
         ok: true;
@@ -131,8 +138,12 @@ export declare class SystemControl {
         ok: true;
         keys: readonly number[];
     }>;
-    runPowerShell(script: string, maxBuffer: number): Promise<ExecutableResult>;
-    runExecutable(file: string, args: readonly string[], throwOnError?: boolean, maxBuffer?: number): Promise<ExecutableResult>;
+    private resolveCommand;
+    private spawnDetached;
+    private listWindowsWindows;
+    private captureScreenWindows;
+    private runJxa;
+    private runPowerShell;
+    private runExecutable;
 }
 export declare function keyCodeFromName(value: string): number;
-export {};

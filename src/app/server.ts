@@ -72,6 +72,19 @@ function hasValidBearer(request: IncomingMessage, expectedToken: string): boolea
     return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
 }
 
+function authorizedRootDescriptions(config: ManuMcpConfig): string[] {
+    return config.access.allowedRoots.map((root) => {
+        if (root.alias === config.workspaceAlias)
+            return `${root.alias}:/ (Escritorio)`;
+        if (root.alias === config.downloadsAlias)
+            return `${root.alias}:/ (Descargas)`;
+        if (root.alias === config.pcAlias)
+            return `${root.alias}:/ (raíz completa del equipo)`;
+        const drive = /^([A-Za-z]):[\\/]$/u.exec(root.path)?.[1];
+        return `${root.alias}:/ (${drive === undefined ? "volumen autorizado" : `unidad ${drive.toUpperCase()}:`})`;
+    });
+}
+
 function healthPayload(config: ManuMcpConfig): Record<string, unknown> {
     return {
         ok: true,
@@ -81,16 +94,12 @@ function healthPayload(config: ManuMcpConfig): Record<string, unknown> {
         mode: config.mode,
         profile: config.profile,
         workspace: `${config.workspaceAlias}:/`,
-        authorizedRoots: [
-            `${config.workspaceAlias}:/ (Escritorio)`,
-            `${config.downloadsAlias}:/ (Descargas)`,
-            `${config.pcAlias}:/ (raíz configurada del PC)`,
-        ],
+        authorizedRoots: authorizedRootDescriptions(config),
         platform: process.platform,
         node: process.version,
         pid: process.pid,
         startedAt,
-        note: "workspace:/ y desktop:/ apuntan al Escritorio real; downloads:/ apunta a Descargas; pc:/ cubre la raíz configurada del PC. El control de comandos, procesos y ventanas está disponible en Windows y exige confirmación explícita para cada acción.",
+        note: "workspace:/ y desktop:/ apuntan al Escritorio real; downloads:/ apunta a Descargas; pc:/ cubre la raíz completa configurada del equipo y descubre otras unidades cuando el sistema las expone. El control de comandos, procesos, ventanas, pantalla y entrada está disponible en Windows y macOS y exige confirmación explícita para cada acción que cambia estado.",
     };
 }
 
@@ -182,7 +191,7 @@ async function startHttp(config: ManuMcpConfig, services: ManuMcpServices): Prom
     const address = server.address();
     const port = typeof address === "object" && address !== null ? address.port : config.port;
     console.log(`ManuMCP listo en http://127.0.0.1:${port}/mcp`);
-    console.log(`Raíces autorizadas: ${config.workspaceAlias}:/, ${config.downloadsAlias}:/, ${config.pcAlias}:/ (raíz configurada del PC) | perfil: ${config.profile}`);
+    console.log(`Raíces autorizadas: ${authorizedRootDescriptions(config).join(", ")} | perfil: ${config.profile}`);
 
     const shutdown = (): void => {
         services.admission.close();
@@ -196,7 +205,7 @@ async function startStdio(config: ManuMcpConfig, services: ManuMcpServices): Pro
     const mcpServer = createMcpServer(services);
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
-    console.error(`ManuMCP stdio listo | raíces: ${config.workspaceAlias}:/, ${config.downloadsAlias}:/, ${config.pcAlias}:/ (raíz configurada del PC) | perfil: ${config.profile}`);
+    console.error(`ManuMCP stdio listo | raíces: ${authorizedRootDescriptions(config).join(", ")} | perfil: ${config.profile}`);
     const shutdown = (): void => {
         services.admission.close();
         void mcpServer.close().finally(() => process.exit(0));

@@ -4,3 +4,9 @@ node_modules/
 .DS_Store
 .test-workspace/
 npm-debug.log*
+.manumcp/
+control-plane-key
+*.dpapi
+tunnel.json
+agent.pid
+tunnel.pid

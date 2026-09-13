@@ -5,7 +5,7 @@ import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sd
 import { z } from "zod";
 import { asStructuredError, TunnelGPTError } from "../core/errors.js";
 import { runBounded, runConfirmed, type ManuMcpServices } from "./services.js";
-import { keyCodeFromName } from "./system-control.js";
+import { keyCodeFromName, type CommandShell } from "./system-control.js";
 import type { ManuMcpConfig } from "./config.js";
 
 const MAX_PATH_CHARS = 1024;
@@ -17,11 +17,13 @@ const MAX_COMMAND_CHARS = 16 * 1024;
 const MAX_ARGUMENT_CHARS = 2048;
 const MAX_TYPED_TEXT_CHARS = 4096;
 const MAX_CONFIRMATION_SUMMARY_CHARS = 4096;
+const DEFAULT_COMMAND_SHELL: CommandShell = process.platform === "win32" ? "powershell" : "sh";
 const DESKTOP_COMPATIBILITY_ALIASES = new Set(["desktop", "escritorio", "workspace"]);
 const DOWNLOADS_ALIASES = new Set(["downloads", "descargas"]);
 const PC_ALIASES = new Set(["pc", "computer", "ordenador", "computer-profile"]);
 const USER_PROFILE_DIRECTORY_NAMES = new Set([
     "appdata",
+    "applications",
     "documents",
     "documentos",
     "downloads",
@@ -34,6 +36,8 @@ const USER_PROFILE_DIRECTORY_NAMES = new Set([
     "desktop",
     "escritorio",
     "onedrive",
+    "users",
+    "volumes",
 ]);
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -45,7 +49,7 @@ const requiredPathSchema = z.string()
     .max(MAX_PATH_CHARS)
     .refine((value) => !/[\0\r\n]/u.test(value), "La ruta no puede contener NUL ni saltos de línea.");
 const rootSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u)
-    .describe("Destino: workspace/desktop para Escritorio, downloads para Descargas o pc para cualquier carpeta dentro de la raíz de PC autorizada (por defecto, el perfil de usuario de Windows).")
+    .describe("Destino: workspace/desktop para Escritorio, downloads para Descargas, pc para cualquier carpeta del equipo y pc-<letra> para otras unidades Windows descubiertas.")
     .optional();
 const confirmationSchema = z.string().max(8192).optional();
 const hashSchema = z.string().regex(/^[0-9a-f]{64}$/iu);
@@ -124,11 +128,7 @@ function absoluteTarget(rawPath: string, requestedRoot: string | undefined, conf
     if (isWindowsAbsolute(rawPath) && process.platform !== "win32")
         return { path: rawPath, rootAlias: requestedRoot ?? config.pcAlias };
     const absolute = path.resolve(rawPath);
-    const candidates = [
-        { alias: config.workspaceAlias, path: config.workspacePath },
-        { alias: config.downloadsAlias, path: config.downloadsPath },
-        { alias: config.pcAlias, path: config.pcPath },
-    ]
+    const candidates = config.access.allowedRoots
         .filter((candidate) => requestedRoot === undefined || candidate.alias === requestedRoot)
         .filter((candidate) => isWithin(candidate.path, absolute))
         .sort((left, right) => right.path.length - left.path.length);
@@ -259,10 +259,23 @@ function keyCodes(values: readonly string[]): number[] {
     return values.map((value) => keyCodeFromName(value));
 }
 
+function authorizedRootDescriptions(config: ManuMcpConfig): string[] {
+    return config.access.allowedRoots.map((root) => {
+        if (root.alias === config.workspaceAlias)
+            return `${root.alias}:/ (Escritorio)`;
+        if (root.alias === config.downloadsAlias)
+            return `${root.alias}:/ (Descargas)`;
+        if (root.alias === config.pcAlias)
+            return `${root.alias}:/ (raíz completa del equipo)`;
+        const drive = /^([A-Za-z]):[\\/]$/u.exec(root.path)?.[1];
+        return `${root.alias}:/ (${drive === undefined ? "volumen autorizado" : `unidad ${drive.toUpperCase()}:`})`;
+    });
+}
+
 export function registerManuMcpTools(server: McpServer, services: ManuMcpServices): void {
     server.registerTool("get_device_health", {
         title: "ManuMCP health",
-        description: "Comprueba si ManuMCP está activo y muestra los destinos autorizados y el modo de control de Windows.",
+        description: "Comprueba si ManuMCP está activo y muestra el sistema, los volúmenes autorizados y el modo de control.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, _extra) => result({
@@ -273,18 +286,21 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         node: process.version,
         profile: services.config.profile,
         workspace: `${services.config.workspaceAlias}:/`,
-        authorizedRoots: [
-            `${services.config.workspaceAlias}:/ (Escritorio)`,
-            `${services.config.downloadsAlias}:/ (Descargas)`,
-            `${services.config.pcAlias}:/ (raíz configurada del PC)`,
-        ],
+        authorizedRoots: authorizedRootDescriptions(services.config),
         transport: services.config.mode,
         pid: process.pid,
     }));
 
+    server.registerTool("list_storage_volumes", {
+        title: "List computer storage volumes",
+        description: "Lista las unidades o volúmenes disponibles y el alias que ManuMCP puede usar. En Windows se descubren C:, D:, F… cuando están montadas; en macOS pc:/ cubre el sistema y /Volumes contiene discos externos.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    }, async (_args, extra) => guarded(services, extra, () => services.system.listStorageVolumes()));
+
     server.registerTool("list_workspace", {
         title: "List workspace files",
-        description: "Lista archivos y carpetas. Usa workspace:/ o desktop:/ para el Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz de PC autorizada. Por defecto pc:/ es el perfil de usuario de Windows; no accede a rutas fuera de los destinos autorizados.",
+        description: "Lista archivos y carpetas. Usa workspace:/ o desktop:/ para el Escritorio, downloads:/ para Descargas, pc:/ para cualquier carpeta del equipo y pc-d:/, pc-f:/… para otras unidades Windows descubiertas. Las rutas sensibles y los destinos fuera de los volúmenes autorizados se bloquean.",
         inputSchema: {
             path: pathSchema.default(""),
             root: rootSchema,
@@ -324,7 +340,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("read_workspace_file", {
         title: "Read workspace file",
-        description: "Lee texto UTF-8 de un archivo autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz autorizada. Las credenciales potenciales y los binarios se bloquean.",
+        description: "Lee texto UTF-8 de un archivo autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas, pc:/ para cualquier carpeta del equipo y el alias pc-<letra> de otra unidad Windows. Las credenciales potenciales y los binarios se bloquean.",
         inputSchema: {
             path: requiredPathSchema,
             root: rootSchema,
@@ -350,7 +366,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("search_workspace", {
         title: "Search workspace",
-        description: "Busca texto dentro de un destino autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas y pc:/ para cualquier carpeta dentro de la raíz autorizada; devuelve coincidencias acotadas y omite secretos o archivos demasiado grandes.",
+        description: "Busca texto dentro de un destino autorizado. Usa workspace:/ o desktop:/ para Escritorio, downloads:/ para Descargas, pc:/ para cualquier carpeta del equipo y pc-<letra> de otras unidades Windows; devuelve coincidencias acotadas y omite secretos o archivos demasiado grandes.",
         inputSchema: {
             query: z.string().min(1).max(4096),
             path: pathSchema.default(""),
@@ -489,11 +505,11 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }));
 
     server.registerTool("run_command", {
-        title: "Run a Windows command",
-        description: "Ejecuta un comando de PowerShell o CMD en el PC. Puede leer o modificar cualquier recurso al que tenga acceso tu usuario. La primera llamada solo muestra el comando, directorio y token; nunca se ejecuta sin confirmed=true y ese confirmationToken.",
+        title: "Run a computer command",
+        description: "Ejecuta un comando en Windows (PowerShell/CMD) o macOS/Linux (sh/bash/zsh). Puede leer o modificar cualquier recurso al que tenga acceso tu usuario. La primera llamada solo muestra el comando, directorio y token; nunca se ejecuta sin confirmed=true y ese confirmationToken.",
         inputSchema: {
             command: z.string().min(1).max(MAX_COMMAND_CHARS).refine((value) => !/[\0\r\n]/u.test(value), "El comando no puede contener NUL ni saltos de línea."),
-            shell: z.enum(["powershell", "cmd"]).default("powershell"),
+            shell: z.enum(["powershell", "cmd", "bash", "zsh", "sh"]).default(DEFAULT_COMMAND_SHELL),
             cwd: pathSchema.optional(),
             timeoutMs: z.number().int().min(100).max(120_000).default(30_000),
             confirmationToken: confirmationSchema,
@@ -522,8 +538,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     });
 
     server.registerTool("launch_application", {
-        title: "Launch a Windows application",
-        description: "Abre un ejecutable o aplicación de Windows con argumentos separados. La acción requiere una vista previa y confirmación explícita; no interpreta argumentos como shell.",
+        title: "Launch a desktop application",
+        description: "Abre un ejecutable o aplicación de Windows o macOS con argumentos separados. La acción requiere una vista previa y confirmación explícita; no interpreta argumentos como shell.",
         inputSchema: {
             executable: requiredPathSchema,
             arguments: z.array(z.string().max(MAX_ARGUMENT_CHARS).refine((value) => !/[\0\r\n]/u.test(value), "Los argumentos no pueden contener NUL ni saltos de línea.")).max(50).default([]),
@@ -552,7 +568,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
 
     server.registerTool("open_item", {
         title: "Open a file or folder",
-        description: "Abre un archivo o carpeta existente con la aplicación asociada de Windows. Solo acepta destinos que ManuMCP pueda autorizar y requiere confirmación.",
+        description: "Abre un archivo o carpeta existente con la aplicación asociada del sistema. Solo acepta destinos que ManuMCP pueda autorizar y requiere confirmación.",
         inputSchema: {
             path: requiredPathSchema,
             confirmationToken: confirmationSchema,
@@ -562,7 +578,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, async (args, extra) => {
         try {
             const target = await existingControlTarget(services, args.path);
-            return controlAction(services, extra, "open_item", { target }, `Abrir ${target} con la aplicación asociada de Windows.`, args.confirmationToken, args.confirmed, () => services.system.openItem({ target, signal: extra.signal }));
+            return controlAction(services, extra, "open_item", { target }, `Abrir ${target} con la aplicación asociada del sistema.`, args.confirmationToken, args.confirmed, () => services.system.openItem({ target, signal: extra.signal }));
         }
         catch (error) {
             return failure(error);
@@ -570,8 +586,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     });
 
     server.registerTool("list_processes", {
-        title: "List Windows processes",
-        description: "Consulta los procesos activos de Windows y devuelve PID, nombre, sesión y memoria. No modifica nada.",
+        title: "List computer processes",
+        description: "Consulta los procesos activos de Windows o macOS y devuelve PID, nombre y memoria. No modifica nada.",
         inputSchema: {
             filter: z.string().max(256).optional(),
             maxEntries: z.number().int().min(1).max(500).default(100),
@@ -580,8 +596,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, async (args, extra) => guarded(services, extra, () => services.system.listProcesses(args.filter, args.maxEntries)));
 
     server.registerTool("terminate_process", {
-        title: "Terminate a Windows process",
-        description: "Termina un proceso de Windows por PID, opcionalmente con fuerza y sus procesos descendientes. Nunca se ejecuta sin vista previa y confirmación explícita.",
+        title: "Terminate a computer process",
+        description: "Termina un proceso de Windows o macOS por PID, opcionalmente con fuerza. Nunca se ejecuta sin vista previa y confirmación explícita.",
         inputSchema: {
             pid: z.number().int().min(1).max(4_000_000),
             force: z.boolean().default(false),
@@ -595,15 +611,15 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, `Terminar el proceso PID ${args.pid}${args.force ? " con fuerza" : ""}.`, args.confirmationToken, args.confirmed, () => services.system.terminateProcess(args.pid, args.force)));
 
     server.registerTool("list_windows", {
-        title: "List visible Windows",
-        description: "Lista ventanas visibles con título, identificador y PID, e indica cuál está activa. No modifica nada.",
+        title: "List visible windows",
+        description: "Lista ventanas visibles de Windows o macOS con título, identificador y PID, e indica cuál está activa. No modifica nada.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, extra) => guarded(services, extra, () => services.system.listWindows()));
 
     server.registerTool("focus_window", {
-        title: "Focus a Windows window",
-        description: "Activa una ventana visible por su identificador. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        title: "Focus a desktop window",
+        description: "Activa una ventana visible de Windows o macOS por su identificador. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
         inputSchema: {
             handle: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
             confirmationToken: confirmationSchema,
@@ -615,8 +631,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, `Activar la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.focusWindow(args.handle)));
 
     server.registerTool("close_window", {
-        title: "Close a Windows window",
-        description: "Solicita el cierre normal de una ventana por su identificador. La aplicación puede pedir guardar cambios; no fuerza el cierre. Requiere confirmación explícita.",
+        title: "Close a desktop window",
+        description: "Solicita el cierre normal de una ventana de Windows o macOS por su identificador. La aplicación puede pedir guardar cambios; no fuerza el cierre. Requiere confirmación explícita.",
         inputSchema: {
             handle: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
             confirmationToken: confirmationSchema,
@@ -628,15 +644,15 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, `Solicitar el cierre normal de la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.closeWindow(args.handle)));
 
     server.registerTool("get_screen_info", {
-        title: "List Windows screens",
-        description: "Consulta las pantallas y sus coordenadas para poder dirigir acciones de interfaz. No modifica nada.",
+        title: "List computer screens",
+        description: "Consulta las pantallas de Windows o macOS y sus coordenadas para dirigir acciones de interfaz. No modifica nada.",
         inputSchema: {},
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     }, async (_args, extra) => guarded(services, extra, () => services.system.getScreenInfo()));
 
     server.registerTool("capture_screen", {
-        title: "Capture the Windows screen",
-        description: "Toma una captura PNG de la pantalla primaria, de una pantalla concreta o de todas. La imagen puede contener información sensible; úsalo solo cuando lo pidas explícitamente.",
+        title: "Capture the computer screen",
+        description: "Toma una captura PNG de la pantalla primaria, de una pantalla concreta o de todas. En macOS requiere Screen Recording. La imagen puede contener información sensible; úsalo solo cuando lo pidas explícitamente.",
         inputSchema: {
             screenIndex: z.number().int().min(0).max(16).optional(),
             allScreens: z.boolean().default(false),
@@ -658,8 +674,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, async (_args, extra) => guarded(services, extra, () => services.system.getCursorPosition()));
 
     server.registerTool("control_mouse", {
-        title: "Control the Windows mouse",
-        description: "Mueve el cursor, hace clic o desplaza la rueda en coordenadas de pantalla. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        title: "Control the desktop mouse",
+        description: "Mueve el cursor, hace clic o desplaza la rueda en coordenadas de pantalla de Windows o macOS. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
         inputSchema: {
             action: z.enum(["move", "click", "scroll"]),
             x: z.number().int().min(-20_000).max(20_000).optional(),
@@ -681,8 +697,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, `Acción de ratón ${args.action} en (${args.x ?? "?"}, ${args.y ?? "?"}).`, args.confirmationToken, args.confirmed, () => services.system.controlMouse(args)));
 
     server.registerTool("type_text", {
-        title: "Type text into the active Windows window",
-        description: "Escribe texto Unicode en la ventana activa mediante la entrada de teclado de Windows. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
+        title: "Type text into the active window",
+        description: "Escribe texto Unicode en la ventana activa mediante la entrada de teclado de Windows o macOS. La primera llamada solo prepara la acción y la segunda exige confirmación explícita.",
         inputSchema: {
             text: z.string().max(MAX_TYPED_TEXT_CHARS).refine((value) => !value.includes("\u0000"), "El texto no puede contener caracteres NUL."),
             confirmationToken: confirmationSchema,
@@ -694,8 +710,8 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
     }, `Escribir ${[...args.text].length} carácter(es) en la ventana activa.`, args.confirmationToken, args.confirmed, () => services.system.typeText(args.text)));
 
     server.registerTool("press_hotkey", {
-        title: "Press a Windows hotkey",
-        description: "Envía una combinación de teclas a la ventana activa. Usa nombres como CTRL, ALT, SHIFT, WIN, ENTER, ESC, TAB, flechas, F1-F12 o letras/números. Requiere confirmación.",
+        title: "Press a desktop hotkey",
+        description: "Envía una combinación de teclas a la ventana activa. Usa CTRL/CONTROL, ALT/OPTION, SHIFT, CMD/WIN, ENTER, ESC, TAB, flechas, F1-F12 o letras/números. Requiere confirmación.",
         inputSchema: {
             keys: z.array(z.string().min(1).max(20)).min(1).max(6),
             confirmationToken: confirmationSchema,

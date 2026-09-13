@@ -4,12 +4,21 @@ param(
     [ValidatePattern('^tunnel_[0-9a-f]{32}$')]
     [string]$TunnelId,
     [string]$Profile = "manumcp-final",
-    [string]$ClientPath = "C:\Users\usuario\AppData\Local\ManuMCP\tunnel-client\v0.0.14\tunnel-client.exe"
+    [string]$ClientPath
 )
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_API_KEY) -or $env:CONTROL_PLANE_API_KEY -notmatch '^sk-[A-Za-z0-9_-]{20,}$') {
     throw "Define CONTROL_PLANE_API_KEY solo en esta sesión antes de instalar el arranque del túnel. No lo guardes en el repositorio."
+}
+if ([string]::IsNullOrWhiteSpace($ClientPath)) {
+    $clientCommand = Get-Command tunnel-client -ErrorAction SilentlyContinue
+    if ($null -ne $clientCommand) {
+        $ClientPath = $clientCommand.Source
+    }
+    else {
+        $ClientPath = Join-Path $env:LOCALAPPDATA "ManuMCP\tunnel-client\tunnel-client.exe"
+    }
 }
 if (-not (Test-Path -LiteralPath $ClientPath -PathType Leaf)) {
     throw "No se encontró tunnel-client: $ClientPath"

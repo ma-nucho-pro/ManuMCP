@@ -47,7 +47,10 @@ if ([string]::IsNullOrWhiteSpace($Downloads)) {
     $Downloads = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads"
 }
 if ([string]::IsNullOrWhiteSpace($PcRoot)) {
-    $PcRoot = [Environment]::GetFolderPath("UserProfile")
+    $PcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("Windows"))
+    if ([string]::IsNullOrWhiteSpace($PcRoot)) {
+        $PcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("UserProfile"))
+    }
 }
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
 $resolvedDownloads = [IO.Path]::GetFullPath($Downloads)

@@ -1,203 +1,408 @@
 # ManuMCP
 
-ManuMCP es un agente MCP local para conectar ChatGPT con tu PC Windows. En la instalación predeterminada autoriza el Escritorio real, Descargas y todo el perfil del usuario; así puede trabajar en `workspace:/`, `downloads:/` y `pc:/` sin depender de que Codex esté abierto. La raíz `pc:/` también se puede ampliar deliberadamente a una unidad como `C:\` al instalar. Además de archivos de texto, expone comandos, procesos y control interactivo de Windows mediante acciones confirmadas, manteniendo el proceso en tu PC.
+<p align="center">
+  <strong>Conecta un agente MCP con tu ordenador completo.</strong><br>
+  ChatGPT web, Codex, Claude Code, Gemini CLI, Cursor y cualquier cliente compatible pueden trabajar con archivos, aplicaciones y procesos; en Windows y macOS también pueden controlar la interfaz gráfica cuando ManuMCP está ejecutándose localmente.
+</p>
 
-La base de seguridad separa el acceso a archivos del control del sistema: las herramientas de archivos mantienen raíces, límites, bloqueo de secretos, rechazo de symlinks y hard links, y escrituras en dos fases; las herramientas de control requieren una vista previa y un token firmado de un solo uso. ManuMCP actúa con los permisos del usuario de Windows y no eleva UAC ni obtiene privilegios de administrador por sí mismo.
+<p align="center">
+  <a href="https://github.com/ma-nucho-pro/ManuMCP/actions/workflows/ci.yml"><img src="https://github.com/ma-nucho-pro/ManuMCP/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D22.12-339933.svg" alt="Node.js 22.12 o posterior"></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-stdio%20%7C%20HTTP-7c3aed.svg" alt="Model Context Protocol"></a>
+</p>
 
-## Qué resuelve y qué no
+> [!IMPORTANT]
+> ManuMCP es un servidor MCP local. No es un bypass de seguridad ni un servicio de administración remota. Ejecuta acciones con los permisos del usuario que inició sesión, y las operaciones que cambian el equipo pasan por una vista previa y una confirmación de un solo uso.
 
-Cuando el ordenador está encendido, no está suspendido, tiene red y el agente/túnel están activos, el flujo es:
+## Qué hace
 
-```text
-ChatGPT web o la superficie compatible de tu cuenta
-        │ MCP por túnel HTTPS privado
-        ▼
-ManuMCP --stdio en tu PC
-        │
-        ├── workspace:/  → %USERPROFILE%\Desktop
-        ├── downloads:/  → %USERPROFILE%\Downloads
-        └── pc:/         → %USERPROFILE% (perfil de usuario)
-```
+ManuMCP mantiene un agente en tu ordenador y le ofrece a tu cliente de IA herramientas para:
 
-Cerrar Codex no detiene este flujo. En Windows, la instalación registra una tarea programada de usuario para arrancar el agente al iniciar sesión. El túnel privado se configura aparte porque necesita asociarse a una cuenta y workspace de OpenAI.
+- trabajar en el Escritorio, Descargas o cualquier carpeta accesible de la máquina;
+- descubrir y usar otras unidades Windows montadas como `pc-d:/`, `pc-f:/`, etc.;
+- abrir Word, navegadores, editores y otras aplicaciones;
+- consultar y terminar procesos;
+- enumerar, enfocar y cerrar ventanas en Windows/macOS;
+- leer pantallas, mover el ratón, escribir texto y pulsar combinaciones de teclas en Windows/macOS;
+- ejecutar PowerShell/CMD en Windows o `sh`, `bash` y `zsh` en macOS/Linux;
+- funcionar sin que Codex permanezca conectado, mientras el agente y el túnel sigan activos.
 
-La versión actual cubre dos capas. Para archivos, `pc:/` cubre cualquier carpeta de la raíz configurada, que por defecto es el perfil del usuario e incluye Documentos, Escritorio y Descargas; si se configura `C:\`, cubre las carpetas normales de esa unidad y mantiene bloqueadas las rutas sensibles en las herramientas de archivos. Para el control del PC, Windows permite ejecutar comandos confirmados, abrir aplicaciones o archivos, inspeccionar y terminar procesos, listar y activar ventanas, tomar capturas y enviar ratón/teclado. El proceso conserva los permisos de tu usuario: una operación que Windows reserve a un administrador seguirá requiriendo autorización de Windows.
+La idea central es que `pc:/` representa el ordenador completo, no solamente una carpeta del proyecto:
 
-## Herramientas MCP
-
-| Herramienta | Uso | Escribe |
+| Plataforma | Raíz completa | Otras unidades |
 | --- | --- | --- |
-| `get_device_health` | Comprueba que el agente está activo y muestra su modo | No |
-| `list_workspace` | Lista archivos y carpetas con profundidad y presupuesto limitados | No |
-| `read_workspace_file` | Lee texto UTF-8 con líneas numeradas, hash y paginación | No |
-| `search_workspace` | Busca texto dentro del workspace | No |
-| `create_workspace_directory` | Propone y luego crea una carpeta | Sí, con confirmación |
-| `create_workspace_file` | Propone y luego crea un archivo de texto | Sí, con confirmación |
-| `replace_workspace_text` | Propone un reemplazo de líneas usando un hash de precondición | Sí, con confirmación |
-| `apply_workspace_patch` | Propone y luego aplica un parche unificado | Sí, con confirmación |
-| `run_command` | Ejecuta PowerShell o CMD en un directorio elegido | Sí, con confirmación |
-| `launch_application` | Abre un ejecutable sin interpretar sus argumentos como shell | Sí, con confirmación |
-| `open_item` | Abre un archivo o carpeta con la aplicación asociada | Sí, con confirmación |
-| `list_processes` | Lista procesos y PID activos | No |
-| `terminate_process` | Termina un proceso por PID, opcionalmente con fuerza | Sí, con confirmación |
-| `list_windows` | Lista ventanas visibles, título, PID e identifica la activa | No |
-| `focus_window` | Activa una ventana por identificador | Sí, con confirmación |
-| `close_window` | Solicita el cierre normal de una ventana | Sí, con confirmación |
-| `get_screen_info` | Lista pantallas y coordenadas | No |
-| `capture_screen` | Devuelve una captura PNG de una o todas las pantallas | No |
-| `get_cursor_position` | Consulta la posición actual del cursor | No |
-| `control_mouse` | Mueve, hace clic o desplaza el ratón | Sí, con confirmación |
-| `type_text` | Escribe Unicode en la ventana activa | Sí, con confirmación |
-| `press_hotkey` | Envía una combinación de teclas a la ventana activa | Sí, con confirmación |
+| Windows | `pc:/` apunta por defecto a la raíz de la unidad del sistema (`C:\`) | Cada unidad montada y accesible se descubre como `pc-d:/`, `pc-f:/`, etc. |
+| macOS | `pc:/` apunta por defecto a `/` | Los discos montados aparecen bajo `pc:/Volumes/<nombre>` |
+| Linux | `pc:/` apunta por defecto a `/` | Los puntos de montaje están dentro de `pc:/` cuando el usuario puede leerlos |
 
-Las herramientas de escritura nunca aplican el primer pedido directamente. Primero devuelven una vista previa y un token de corta duración. La aplicación requiere repetir los argumentos, el token y `confirmed: true`; además, el servidor consume cada token una sola vez y vuelve a comprobar el archivo antes de escribir.
+Además existen los alias cómodos `workspace:/` y `desktop:/` para el Escritorio, y `downloads:/` y `descargas:/` para Descargas. Una ruta sin alias, como `hola mundo.txt`, continúa teniendo por defecto el Escritorio para evitar sorpresas.
+
+La capa de archivos mantiene una política no reducible: bloquea credenciales, claves privadas, tokens, archivos `.env`, almacenes de configuración sensibles, enlaces simbólicos, hard links y carpetas críticas del sistema. El shell confirmado es deliberadamente más potente y puede tocar cualquier recurso que el usuario del proceso pueda tocar; revisa su vista previa.
+
+## Cómo funciona
+
+~~~text
+ChatGPT web / Codex / Claude Code / Gemini CLI / Cursor / otro cliente MCP
+                         │
+             stdio local o túnel MCP seguro
+                         ▼
+              ManuMCP en tu ordenador
+                         │                 │
+       archivos y comandos      escritorio gráfico (Windows/macOS)
+     pc:/, pc-d:/, workspace:/   ventanas, pantalla, ratón, teclado
+~~~
+
+En Windows, el instalador registra `ManuMCP Agent` en el Programador de tareas. En macOS instala un `LaunchAgent`; en Linux intenta instalar un servicio systemd de usuario y, si no está disponible, mantiene un proceso de usuario con reinicio manual. El agente se inicia cuando la sesión del usuario está disponible.
+
+Para que ChatGPT web llegue a ese agente desde fuera de la red local hace falta mantener activo un túnel saliente. ManuMCP incluye helpers para el Secure MCP Tunnel de OpenAI y para stdio; la credencial del túnel es específica de tu cuenta y nunca se inventa ni se publica en este repositorio.
 
 ## Requisitos
 
-- Windows 10/11 con Node.js **22.12 o posterior**.
-- PowerShell 5.1 o PowerShell 7 para los scripts de instalación.
-- Para el túnel privado: acceso al producto Secure MCP Tunnel de OpenAI, permisos de organización/workspace y el `tunnel-client` oficial.
-- Para la alternativa temporal: `ngrok` instalado y autenticado.
+### Todos los sistemas
 
-## Instalar en Windows
+- Node.js **22.12 o posterior** y npm.
+- Git si vas a clonar el repositorio.
+- Un cliente MCP que admita transporte stdio, o un cliente remoto que admita el túnel MCP.
+- Una sesión de usuario activa y el ordenador encendido/despierto para el control gráfico.
 
-Desde una copia del repositorio:
+### Windows
 
-```powershell
+- Windows 10 u 11.
+- PowerShell 5.1 o PowerShell 7.
+- Para ventanas, pantalla, ratón y teclado: una sesión gráfica interactiva. No hace falta ejecutar el instalador como administrador.
+
+### macOS
+
+- macOS con Node.js instalado.
+- Para controlar ventanas y entrada: concede a la aplicación que ejecuta Node/ManuMCP los permisos de **Accessibility**.
+- Para `capture_screen`: concede **Screen Recording**. macOS puede pedir cerrar y volver a abrir la aplicación después del cambio.
+
+### Linux
+
+- Linux con Node.js instalado.
+- Se admiten archivos, comandos, procesos y apertura de elementos con los permisos del usuario.
+- El backend de control gráfico de ventanas, pantallas, ratón, escritura y atajos todavía no está implementado en Linux; esas herramientas devuelven una respuesta de plataforma no compatible.
+
+### ChatGPT web
+
+- Acceso de tu cuenta al modo de desarrollador y a apps MCP personalizadas.
+- Un túnel Secure MCP de OpenAI creado y asociado al workspace correcto, más el `tunnel-client` oficial.
+- La app MCP debe actualizarse después de cambiar el catálogo de herramientas.
+
+## Instalación rápida
+
+### Windows
+
+En PowerShell:
+
+~~~powershell
 git clone https://github.com/ma-nucho-pro/ManuMCP.git
 Set-Location ManuMCP
 Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\install-windows.ps1
-```
+~~~
 
-El instalador:
+El instalador instala las dependencias del lockfile, compila `dist`, crea el Escritorio y Descargas si hacen falta, genera un token local, guarda las raíces en `%APPDATA%\ManuMCP\roots.json` y deja el agente respondiendo en `http://127.0.0.1:8787/healthz`.
 
-1. instala exactamente las dependencias del lockfile y compila `dist`;
-2. crea `%USERPROFILE%\Desktop` y `%USERPROFILE%\Downloads` si no existen, y usa también `%USERPROFILE%` como raíz `pc:/`;
-3. genera, una sola vez, el token local en `%APPDATA%\ManuMCP\local-token.txt`;
-4. registra la tarea de usuario `ManuMCP Agent` y la inicia;
-5. guarda las tres rutas no secretas en `%APPDATA%\ManuMCP\roots.json` para que el agente y el túnel usen exactamente la misma configuración;
-6. deja los logs en `%APPDATA%\ManuMCP\logs\agent.log`.
+Sin parámetros, `pc:/` se configura como la raíz de la unidad donde está Windows. Si prefieres una raíz diferente o más estrecha:
 
-La tarea usa el PowerShell del sistema y la instalación de Node.js detectada, no el runtime de Codex. También puede iniciar el agente con batería, no tiene límite de duración y está configurada para reintentarlo si el proceso termina.
+~~~powershell
+.\scripts\install-windows.ps1 -PcRoot "D:\Mis archivos"
+~~~
 
-El endpoint HTTP local queda en `http://127.0.0.1:8787/mcp` y exige el token Bearer. Solo escucha en loopback. El token no se guarda en el repositorio ni se muestra en los logs. El túnel privado usa el transporte stdio y mantiene las mismas raíces de Escritorio, Descargas y perfil de usuario.
+Para autorizar explícitamente la unidad del sistema completa:
 
-Para ejecutarlo de forma visible durante una prueba:
-
-```powershell
-.\scripts\start-windows.ps1 -Foreground
-```
-
-La instalación predeterminada usa el Escritorio, Descargas y `%USERPROFILE%`. Si necesitas cambiar alguna raíz, puedes pasarla explícitamente; el túnel reutilizará esa configuración guardada. Para autorizar deliberadamente la unidad del sistema como raíz amplia de archivos, usa `-PcRoot "C:\"`; las herramientas de control de Windows actúan con los permisos del usuario y las acciones mutantes siguen exigiendo confirmación:
-
-```powershell
+~~~powershell
 .\scripts\install-windows.ps1 -PcRoot "C:\"
-```
+~~~
 
-También puedes configurar una raíz distinta y más estrecha, por ejemplo `-Downloads "D:\Mis descargas" -PcRoot "D:\Mis archivos"`.
+El valor predeterminado ya cubre `C:\` y ManuMCP descubre otras letras de unidad montadas y accesibles. No se crean ni se autorizan letras que no existan.
 
-Para quitar únicamente la tarea automática, sin borrar archivos, workspace ni token:
+Instalación desde una terminal sin clonar antes:
 
-```powershell
-.\scripts\uninstall-windows.ps1
-```
+~~~powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-windows.ps1).Content))
+~~~
 
-## Conectar con ChatGPT mediante túnel privado
+Si una ruta llamada `ManuMCP` ya existe y no es un repositorio Git, el bootstrap se detiene y no la sobrescribe. Para máxima trazabilidad, clona el repositorio y ejecuta el instalador visible.
 
-La opción recomendada es el Secure MCP Tunnel oficial de OpenAI. Su cliente crea una conexión saliente desde tu ordenador, por lo que no tienes que abrir un puerto entrante en el router o firewall. La guía oficial describe la creación del túnel, el runtime API key, `tunnel-client init`, `doctor` y `run`:
+### macOS y Linux
+
+En una terminal:
+
+~~~bash
+git clone https://github.com/ma-nucho-pro/ManuMCP.git
+cd ManuMCP
+bash scripts/install-unix.sh
+~~~
+
+El instalador crea `~/Desktop` y `~/Downloads` si no existen, usa `/` como `pc:/` por defecto, genera el token local en `~/.config/manumcp/local-token.txt`, compila el servidor e instala el arranque del agente:
+
+- macOS: `~/Library/LaunchAgents/com.manumcp.agent.plist`;
+- Linux con systemd: `~/.config/systemd/user/manumcp.service`;
+- Linux sin systemd de usuario: proceso de usuario y log en `~/.config/manumcp/logs/`.
+
+También puedes usar el bootstrap:
+
+~~~bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ma-nucho-pro/ManuMCP/main/scripts/bootstrap-unix.sh)"
+~~~
+
+El bootstrap no sobrescribe una carpeta existente que no sea un repositorio Git. Si necesitas una raíz más estrecha:
+
+~~~bash
+MANUMCP_PC_ROOT="$HOME" bash scripts/install-unix.sh
+~~~
+
+Comprueba que el agente quedó activo:
+
+~~~bash
+curl -fsS http://127.0.0.1:8787/healthz
+~~~
+
+La respuesta debe incluir `ok: true`, `pc:/ (raíz completa del equipo)` y el transporte `http`.
+
+### Prompt de instalación para otro agente
+
+Puedes pegar este prompt en un agente que tenga terminal y, si hace falta, navegador/computer-use:
+
+~~~text
+Instala y verifica ManuMCP en este ordenador. Detecta Windows, macOS o Linux; clona https://github.com/ma-nucho-pro/ManuMCP si no está presente; ejecuta el instalador correcto; espera a que /healthz responda ok:true; conecta el servidor MCP por stdio en este cliente; y prueba get_device_health, list_storage_volumes y un run_command de solo lectura mediante vista previa y confirmación. Usa pc:/ para la raíz completa, workspace:/ para Escritorio y downloads:/ para Descargas. Si el cliente dispone de navegador o computer-use, úsalo para completar la configuración visual y comprobar la conexión. No declares éxito hasta enseñar los resultados de las pruebas. Si una credencial, permiso del sistema o autorización de la cuenta es necesaria, detente en ese paso y explica exactamente qué debe aceptar el usuario.
+~~~
+
+Ese prompt automatiza la instalación del servidor y la verificación, pero no debe pedir a un agente que falsifique permisos, eleve UAC, desactive protecciones o copie secretos a un repositorio.
+
+## Configurar el cliente MCP local
+
+El transporte stdio es la opción para Codex, Claude Code, Gemini CLI, Cursor y cualquier otro cliente compatible. El comando directo mínimo es:
+
+~~~text
+node /ruta/ManuMCP/dist/app/server.js --stdio
+~~~
+
+Después de ejecutar el instalador, es mejor usar el wrapper persistente para conservar exactamente las raíces elegidas:
+
+Windows:
+
+~~~text
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File %APPDATA%\ManuMCP\stdio-entrypoint.ps1
+~~~
+
+macOS/Linux:
+
+~~~text
+bash /ruta/ManuMCP/scripts/stdio-entrypoint-unix.sh
+~~~
+
+### Codex
+
+~~~bash
+codex mcp add manumcp -- node /ruta/ManuMCP/dist/app/server.js --stdio
+codex mcp list
+~~~
+
+Para que esté disponible en todos tus proyectos, usa el alcance de usuario que admita tu versión de Codex o configura la entrada en `~/.codex/config.toml`. En Windows puedes sustituir el comando por el wrapper de PowerShell.
+
+### Claude Code
+
+~~~bash
+claude mcp add --transport stdio --scope user manumcp -- node /ruta/ManuMCP/dist/app/server.js --stdio
+claude mcp list
+~~~
+
+En Windows nativo, si tu instalación necesita un wrapper de shell, usa:
+
+~~~text
+claude mcp add --transport stdio --scope user manumcp -- cmd /c powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\Users\TU_USUARIO\AppData\Roaming\ManuMCP\stdio-entrypoint.ps1
+~~~
+
+### Gemini CLI
+
+~~~bash
+gemini mcp add manumcp node /ruta/ManuMCP/dist/app/server.js --stdio --scope user
+gemini mcp list
+~~~
+
+Si tu versión coloca las opciones antes del comando, ejecuta `gemini mcp add --help` y conserva el mismo nombre, ejecutable y argumentos.
+
+### Cursor
+
+Cursor usa `mcp.json`. Para una configuración global, edita o combina esta entrada en `~/.cursor/mcp.json`; para una sola carpeta usa `.cursor/mcp.json`. Combina el objeto con el archivo existente, no borres otros servidores:
+
+~~~json
+{
+  "mcpServers": {
+    "manumcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/ruta/ManuMCP/dist/app/server.js", "--stdio"]
+    }
+  }
+}
+~~~
+
+En Cursor también puedes añadir el servidor desde Customize > MCPs o comprobarlo con `agent mcp list`.
+
+### Otros clientes
+
+Todo cliente MCP que implemente stdio puede iniciar el mismo comando. Si requiere JSON, la forma estándar es:
+
+~~~json
+{
+  "mcpServers": {
+    "manumcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/ruta/ManuMCP/dist/app/server.js", "--stdio"]
+    }
+  }
+}
+~~~
+
+La compatibilidad depende del cliente: ManuMCP no puede modificar configuraciones de una aplicación que no está instalada ni saltarse su modelo de aprobaciones.
+
+## Conectar ChatGPT web mediante Secure MCP Tunnel
+
+ChatGPT web no lee la configuración local de Codex ni puede arrancar un proceso en tu ordenador por sí solo. Para llegar a ManuMCP desde un chat remoto, crea/asocia un Secure MCP Tunnel de OpenAI y haz que su comando stdio inicie ManuMCP.
+
+La guía oficial del túnel es:
 
 <https://developers.openai.com/api/docs/guides/secure-mcp-tunnels>
 
-El comando MCP que debe ejecutar el túnel es el transporte stdio de ManuMCP:
+### Windows
 
-```text
-node C:\ruta\a\ManuMCP\dist\app\server.js --stdio
-```
+Define la runtime key solo en la sesión actual y sustituye el identificador real del túnel:
 
-En Windows puedes preparar y ejecutar el cliente con el helper incluido. Primero define la runtime key solo en la sesión actual y sustituye el `tunnel_id` real:
-
-```powershell
+~~~powershell
 $env:CONTROL_PLANE_API_KEY = "sk-..."
 .\scripts\run-openai-tunnel.ps1 -TunnelId "tunnel_..."
-```
+~~~
 
-El helper ejecuta `tunnel-client init --sample sample_mcp_stdio_local`, `doctor` y `run` con el comando stdio de ManuMCP. Descarga `tunnel-client` desde Platform tunnel settings o su release oficial; no pongas la runtime API key dentro de este repositorio ni en una tarea programada sin un almacén de secretos. El agente stdio no abre un servidor HTTP público y no necesita el token local.
+El helper ejecuta `init`, `doctor` y `run`. Para instalar el arranque automático del túnel:
 
-Para que el túnel vuelva a arrancar al iniciar sesión en Windows, después de crear el perfil puedes instalar la tarea automática con la clave presente solo en la sesión actual:
-
-```powershell
+~~~powershell
 $env:CONTROL_PLANE_API_KEY = "sk-..."
-.\scripts\install-tunnel-windows.ps1 -TunnelId "tunnel_..." -Profile "manumcp-final" -ClientPath "C:\ruta\a\tunnel-client.exe"
+.\scripts\install-tunnel-windows.ps1 -TunnelId "tunnel_..." -ClientPath "C:\ruta\a\tunnel-client.exe"
 $env:CONTROL_PLANE_API_KEY = $null
-```
+~~~
 
-El instalador guarda la clave únicamente como un secreto cifrado con Windows DPAPI para el usuario actual, limita el archivo al usuario actual y registra `ManuMCP Tunnel` para iniciarlo al iniciar sesión. No la escribe en el repositorio ni en los argumentos de la tarea. Para revisar el estado:
+La clave queda protegida con DPAPI para el usuario actual. La tarea `ManuMCP Tunnel` solo puede ejecutarse cuando Windows puede descifrarla, hay una sesión válida y existe red.
 
-```powershell
-Get-ScheduledTask -TaskName "ManuMCP Agent", "ManuMCP Tunnel"
-& "C:\ruta\a\tunnel-client.exe" runtimes status manumcp --json
-```
+### macOS/Linux
 
-La tarea solo puede funcionar mientras el usuario de Windows pueda descifrar su credencial, la PC esté encendida/despierta y tenga red.
+Después de instalar el agente y descargar `tunnel-client`:
 
-Una vez que el túnel esté creado y asociado al workspace correcto:
+~~~bash
+export CONTROL_PLANE_API_KEY="sk-..."
+MANUMCP_TUNNEL_CLIENT="/ruta/tunnel-client" bash scripts/install-tunnel-unix.sh tunnel_0123456789abcdef0123456789abcdef
+unset CONTROL_PLANE_API_KEY
+~~~
 
-1. abre ChatGPT y activa Developer mode según la documentación de tu cuenta;
-2. en la sección de Apps/Plugins compatible, pulsa `+`;
-3. selecciona la opción de túnel, elige el túnel disponible y conéctalo;
-4. prueba primero `get_device_health`, luego `list_workspace` y finalmente una escritura pequeña.
+En macOS la clave se guarda en el llavero del usuario. En Linux se guarda en un archivo con permisos `600`. El helper instala `com.manumcp.tunnel.plist` o `manumcp-tunnel.service` y ejecuta el wrapper stdio de ManuMCP.
 
-La documentación oficial de la integración MCP y del endpoint `/mcp` está aquí:
+La clave de runtime y el identificador del túnel son secretos/configuración de tu cuenta: no los subas al repositorio, no los pongas en una URL y no los pegues en el README.
 
-<https://developers.openai.com/plugins/build/app-quickstart>
+### Activarlo en ChatGPT
 
-La documentación de OpenAI también advierte que los servidores MCP remotos pueden recibir datos sensibles y que conviene exigir aprobación para acciones de escritura:
+1. Abre ChatGPT en la web con la cuenta y workspace correctos.
+2. Activa Developer mode si tu cuenta lo permite.
+3. Añade la app MCP o el túnel desde la sección de Apps/Plugins.
+4. Selecciona el túnel asociado a ese workspace y completa la autorización.
+5. Si cambiaste herramientas, pulsa **Actualizar/Refresh** para que ChatGPT reciba el catálogo nuevo.
+6. Prueba `get_device_health`, después `list_storage_volumes` y finalmente una operación pequeña.
 
-<https://developers.openai.com/api/docs/guides/tools-connectors-mcp>
+Para usarlo desde un teléfono, abre ChatGPT web en el navegador y comprueba la disponibilidad de tu cuenta. La documentación actual de OpenAI indica que las apps MCP personalizadas se conectan desde la web y no desde la aplicación móvil nativa; el túnel puede seguir corriendo en tu PC, pero el cliente móvil nativo no se debe presentar como compatible sin soporte oficial.
 
-La visibilidad del túnel depende de que esté asociado al workspace y permisos correctos. Este repositorio no puede crear por sí solo una conexión en tu cuenta ni inventar una runtime API key.
+## Navegador y computer-use
 
-## Alternativa temporal con ngrok
+ManuMCP no pretende ser una extensión del navegador ni sustituye la capacidad de browser-use de cada cliente. Expone el control del escritorio local para que un agente que ya tiene visión/computer-use pueda combinarlo con MCP:
 
-La alternativa es útil para probar desde ChatGPT cuando no tengas acceso al túnel privado, pero la URL es pública y temporal. Instala y autentica ngrok por separado y ejecuta:
+1. `list_windows` identifica la ventana y el proceso.
+2. `capture_screen` obtiene una imagen de la pantalla.
+3. `focus_window` activa la aplicación.
+4. `control_mouse`, `type_text` y `press_hotkey` interactúan con la interfaz.
+5. `launch_application` puede iniciar Word, Edge, Chrome, Safari u otra aplicación instalada.
 
-```powershell
-.\scripts\start-ngrok.ps1
-```
+Por ejemplo, en Windows/macOS el cliente puede abrir Word con `launch_application`, usar `list_windows` para localizarlo y escribir en el documento. Para abrir un archivo existente se usa `open_item`. En Linux puede abrir aplicaciones o documentos, pero no controlar gráficamente sus ventanas mediante las herramientas de ManuMCP. El cliente sigue siendo responsable de sus propias capacidades de navegador, visión y confirmación.
 
-El script arranca o reutiliza el agente local y muestra la URL HTTPS resultante con `/mcp` junto con el token Bearer que debes configurar en la autenticación de la app MCP. Copia la URL y configura el token como Bearer en ChatGPT; nunca lo pongas en la URL. La URL cambia al reiniciar ngrok y esta opción no debe usarse para datos sensibles.
+## Herramientas disponibles
 
-## Límites importantes
+| Herramienta | Función | Cambia el equipo |
+| --- | --- | --- |
+| `get_device_health` | Estado, plataforma, perfil y raíces autorizadas | No |
+| `list_storage_volumes` | Descubre unidades/volúmenes y aliases utilizables | No |
+| `list_workspace` | Lista archivos y carpetas con límites | No |
+| `read_workspace_file` | Lee texto UTF-8 con paginación y hash | No |
+| `search_workspace` | Busca texto dentro de una raíz autorizada | No |
+| `create_workspace_directory` | Propone y crea una carpeta | Sí, confirmación |
+| `create_workspace_file` | Propone y crea un archivo de texto | Sí, confirmación |
+| `replace_workspace_text` | Reemplaza un rango usando hash de precondición | Sí, confirmación |
+| `apply_workspace_patch` | Aplica un parche unificado usando hash | Sí, confirmación |
+| `run_command` | PowerShell/CMD o sh/bash/zsh | Sí, confirmación |
+| `launch_application` | Abre un ejecutable o aplicación instalada | Sí, confirmación |
+| `open_item` | Abre un archivo/carpeta con la aplicación asociada | Sí, confirmación |
+| `list_processes` | Lista procesos y memoria | No |
+| `terminate_process` | Termina un proceso por PID | Sí, confirmación |
+| `list_windows` | Lista ventanas visibles y la activa | No |
+| `focus_window` | Activa una ventana | Sí, confirmación |
+| `close_window` | Solicita el cierre normal de una ventana | Sí, confirmación |
+| `get_screen_info` | Lista pantallas y coordenadas | No |
+| `capture_screen` | Captura una pantalla o todas | No |
+| `get_cursor_position` | Lee la posición del cursor | No |
+| `control_mouse` | Mueve, pulsa o desplaza el ratón | Sí, confirmación |
+| `type_text` | Escribe Unicode en la ventana activa | Sí, confirmación |
+| `press_hotkey` | Envía una combinación de teclas | Sí, confirmación |
 
-- `workspace:/` y `desktop:/` corresponden al Escritorio real (`%USERPROFILE%\Desktop`); `downloads:/` y `descargas:/` corresponden a Descargas; `pc:/` corresponde a la raíz configurada por `MANUMCP_PC_ROOT` (por defecto `%USERPROFILE%`) y permite cualquier carpeta que no esté excluida por la política de seguridad.
-- Las rutas se expresan normalmente como `pc:/Documents/archivo.txt`, `downloads:/archivo.txt` o `workspace:/carpeta/archivo.txt`. También se aceptan rutas absolutas de Windows que estén dentro de esas raíces y se convierten a su alias seguro; se siguen rechazando UNC, `..`, URI, dispositivos y alias ajenos.
-- Un nombre sin raíz (por ejemplo `hola mundo`) conserva el valor predeterminado de Escritorio; `Documents/...` se interpreta como `pc:/Documents/...`, y `Downloads/...` como `downloads:/...`.
-- Las raíces se pueden cambiar mediante `MANUMCP_WORKSPACE`, `MANUMCP_DOWNLOADS` y `MANUMCP_PC_ROOT`; el instalador de Windows también acepta `-PcRoot "C:\"` para una raíz amplia de la unidad del sistema.
-- Se bloquean `.mcpignore`, credenciales conocidas, claves privadas, tokens, `.env`, `AppData`, colmenas de registro del perfil (`NTUSER.*`/`UsrClass.dat*`), `node_modules`, `.git/objects`, `dist`, `build`, `.next`, `coverage` y otros patrones de riesgo.
-- El perfil por defecto es `edit_safe`; se puede usar `MANUMCP_PROFILE=read_only` para exponer únicamente lectura.
-- Los tamaños de lectura/escritura, líneas, profundidad, concurrencia y tiempo de operación son finitos.
-- `run_command` ejecuta PowerShell o CMD únicamente después de una vista previa y confirmación de un solo uso; no eleva privilegios, no instala un servicio de administrador y limita tiempo/salida.
-- `launch_application`, `open_item`, `list_processes`, `terminate_process`, `list_windows`, `focus_window`, `close_window`, `capture_screen`, `control_mouse`, `type_text` y `press_hotkey` permiten el control de Windows descrito arriba. Las operaciones que modifican estado requieren confirmación; las consultas de procesos, ventanas, pantalla y cursor son de lectura.
-- El acceso de archivos conserva el bloqueo de `.mcpignore`, credenciales, `AppData`, directorios del sistema y otros patrones de riesgo; el shell confirmado puede ser capaz de acceder a un recurso que tu usuario de Windows tenga permitido, por lo que debes revisar cada vista previa.
-- El ordenador debe estar encendido y despierto; “instalado” no significa que funcione cuando está apagado o sin conexión.
-- La documentación actual de OpenAI indica que las apps MCP están disponibles solo en la web, no en móvil. Por tanto, esta implementación no puede cumplir una conexión MCP desde la app móvil; úsala desde ChatGPT web. La compatibilidad completa con acciones de escritura también depende del plan y del workspace: OpenAI la documenta para Business y Enterprise/Edu, mientras que Pro queda limitado a lectura/obtención en este flujo. Consulta la disponibilidad vigente en tu cuenta antes de publicar.
+Las operaciones mutantes siguen siempre un flujo de dos llamadas: ManuMCP devuelve una vista previa con un token firmado de un solo uso, y la segunda llamada debe repetir los argumentos con `confirmed: true` y ese token. El token caduca y no se puede reutilizar.
 
-Referencia oficial de disponibilidad y permisos: <https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt>
+## Límites y seguridad
 
-## Desarrollo y verificación
+- `pc:/` significa raíz completa del sistema configurada, pero no significa privilegios de administrador.
+- En Windows se exponen solo letras de unidad montadas y accesibles en el momento en que arranca el agente. Si conectas una unidad después, reinicia el agente o vuelve a instalarlo para descubrirla.
+- Un disco apagado, desmontado, cifrado o sin permisos no puede ser controlado por ningún MCP sin que el sistema operativo lo haga accesible.
+- Los comandos se ejecutan como el usuario actual. ManuMCP no eleva UAC, no rompe permisos de macOS y no desactiva sandboxing de un cliente.
+- La política de archivos bloquea credenciales, `AppData`, `Windows`, `Program Files`, `ProgramData`, `System`, `Library`, `private`, `.ssh`, `.aws`, `.config`, `.git/objects` y otros destinos sensibles.
+- La política de archivos rechaza enlaces simbólicos y hard links para evitar escapar de una raíz o tocar un archivo inesperado.
+- Las capturas pueden contener contraseñas, correo, documentos y datos personales.
+- El servidor HTTP solo escucha en loopback y exige token Bearer; el túnel recomendado usa stdio y una conexión saliente.
+- Mantén el túnel detenido cuando no necesites control remoto y revisa las confirmaciones de acciones destructivas.
+- “Instalación automática” significa que el script puede preparar el proceso, las dependencias y el arranque de usuario. No puede conceder silenciosamente permisos de Accessibility, Screen Recording, UAC, cuenta OpenAI, workspace MCP o autenticación del cliente.
 
-```powershell
+## Verificación local
+
+~~~bash
 npm ci --ignore-scripts
 npm run check
 node scripts/verify-package.mjs
 npm audit --audit-level=low
-```
+~~~
 
-`npm run check` cubre el núcleo, la autenticación HTTP, el flujo de confirmación de escrituras y acciones de control, el bloqueo de traversal/secretos y el transporte stdio. Las pruebas nativas de pantalla/procesos se ejecutan en Windows; la prueba del socket Unix del proyecto original se omite en Windows porque ese ejemplo no es el transporte usado por ManuMCP.
+`npm run check` compila y ejecuta las pruebas del núcleo, autenticación HTTP, límites de rutas, bloqueo de secretos, escrituras confirmadas, transporte stdio y control de procesos/comandos. En Windows también ejecuta las comprobaciones nativas de ventanas, pantallas, cursor y entrada. En macOS ejecuta la prueba POSIX de comando, procesos y volumen; las comprobaciones gráficas requieren una sesión y permisos de Accessibility/Screen Recording. En Linux se validan archivos, comandos, procesos, volúmenes y apertura de elementos; el control gráfico todavía no está implementado.
 
-## Origen y licencia
+## Desarrollo
 
-ManuMCP parte del núcleo open source de [tunnelgpt-mcp-core](https://github.com/carlosrodera/tunnelgpt-mcp-core), conservando sus avisos MIT y sus primitivas de autorización, lectura segura, búsqueda y escritura atómica. La capa `src/app` añade el agente Windows, el endpoint MCP oficial por HTTP/stdio, la configuración de las raíces de Escritorio, Descargas y perfil de usuario, y los scripts de instalación.
+~~~bash
+npm ci --ignore-scripts
+npm run typecheck
+npm run build
+npm test
+~~~
 
-Este repositorio está bajo la licencia [MIT](LICENSE). ManuMCP no es un producto oficial de OpenAI y no concede por sí mismo acceso a la cuenta de ChatGPT.
+La configuración se puede estrechar con `MANUMCP_WORKSPACE`, `MANUMCP_DOWNLOADS` y `MANUMCP_PC_ROOT`. `MANUMCP_PROFILE=read_only` desactiva todas las operaciones de control y escritura; `edit_safe` es el perfil por defecto.
+
+## Proyecto y licencia
+
+ManuMCP parte del núcleo open source de [tunnelgpt-mcp-core](https://github.com/carlosrodera/tunnelgpt-mcp-core) y conserva sus avisos MIT y sus primitivas de autorización, lectura segura, búsqueda y escritura atómica. La capa `src/app` añade el agente multiplataforma, el control de escritorio, el catálogo MCP HTTP/stdio, la detección de volúmenes y los instaladores.
+
+Este repositorio está bajo la licencia [MIT](LICENSE). ManuMCP no es un producto oficial de OpenAI, Anthropic, Google ni Cursor.
+
+## Autor
+
+Hecho por [Roberto Manuel Jara Peche](https://github.com/ma-nucho-pro).
+
+- GitHub: [@ma-nucho-pro](https://github.com/ma-nucho-pro)
+- YouTube: [@ManuchoAI](https://www.youtube.com/@ManuchoAI)
+- X: [@ManuchoAI](https://x.com/ManuchoAI)
+- Instagram: [@robertmanuchojp](https://www.instagram.com/robertmanuchojp/)
+- LinkedIn: [Roberto Manuel Jara Peche](https://www.linkedin.com/in/roberto-manuel-jara-peche-10867240b/)

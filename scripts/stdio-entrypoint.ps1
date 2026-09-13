@@ -20,7 +20,17 @@ if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
     throw "No existe el servidor compilado de ManuMCP: $entryPoint"
 }
 
-$node = (Get-Command node -ErrorAction Stop).Source
+$nodePathFile = Join-Path $appDataDirectory "node-path.txt"
+$node = $null
+if (Test-Path -LiteralPath $nodePathFile -PathType Leaf) {
+    $configuredNode = (Get-Content -LiteralPath $nodePathFile -Raw).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($configuredNode) -and (Test-Path -LiteralPath $configuredNode -PathType Leaf)) {
+        $node = $configuredNode
+    }
+}
+if ([string]::IsNullOrWhiteSpace($node)) {
+    $node = (Get-Command node -ErrorAction Stop).Source
+}
 $userProfile = [Environment]::GetFolderPath("UserProfile")
 $rootsConfigPath = Join-Path $appDataDirectory "roots.json"
 $rootsConfig = $null
@@ -52,7 +62,13 @@ if ([string]::IsNullOrWhiteSpace($env:MANUMCP_DOWNLOADS)) {
 }
 if ([string]::IsNullOrWhiteSpace($env:MANUMCP_PC_ROOT)) {
     $configuredPcRoot = [string]$rootsConfig.pcRoot
-    $env:MANUMCP_PC_ROOT = if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) { $userProfile } else { $configuredPcRoot }
+    if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) {
+        $configuredPcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("Windows"))
+        if ([string]::IsNullOrWhiteSpace($configuredPcRoot)) {
+            $configuredPcRoot = [IO.Path]::GetPathRoot($userProfile)
+        }
+    }
+    $env:MANUMCP_PC_ROOT = $configuredPcRoot
 }
 & $node $entryPoint --stdio
 exit $LASTEXITCODE

@@ -9,6 +9,10 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $node = (Get-Command node -ErrorAction Stop).Source
 $npm = (Get-Command npm -ErrorAction Stop).Source
+$nodeVersionCheck = & $node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'
+if ($LASTEXITCODE -ne 0) {
+    throw "ManuMCP necesita Node.js 22.12 o posterior. Versión encontrada: $(& $node --version)."
+}
 $systemPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 if (Test-Path -LiteralPath $systemPowerShell -PathType Leaf) {
     $shellPath = $systemPowerShell
@@ -36,6 +40,8 @@ finally {
 $applicationData = [Environment]::GetFolderPath("ApplicationData")
 $appDataDirectory = Join-Path $applicationData "ManuMCP"
 New-Item -ItemType Directory -Path $appDataDirectory -Force | Out-Null
+$nodePathFile = Join-Path $appDataDirectory "node-path.txt"
+[IO.File]::WriteAllText($nodePathFile, $node, [Text.UTF8Encoding]::new($false))
 $stdioWrapperSource = Join-Path $projectRoot "scripts\stdio-entrypoint.ps1"
 $stdioWrapperPath = Join-Path $appDataDirectory "stdio-entrypoint.ps1"
 $projectRootPath = Join-Path $appDataDirectory "project-root.txt"
@@ -57,7 +63,10 @@ if ([string]::IsNullOrWhiteSpace($Downloads)) {
     $Downloads = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads"
 }
 if ([string]::IsNullOrWhiteSpace($PcRoot)) {
-    $PcRoot = [Environment]::GetFolderPath("UserProfile")
+    $PcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("Windows"))
+    if ([string]::IsNullOrWhiteSpace($PcRoot)) {
+        $PcRoot = [IO.Path]::GetPathRoot([Environment]::GetFolderPath("UserProfile"))
+    }
 }
 $resolvedWorkspace = [IO.Path]::GetFullPath($Workspace)
 $resolvedDownloads = [IO.Path]::GetFullPath($Downloads)
@@ -114,7 +123,7 @@ if ($null -ne $existingTask -and $existingTask.State -eq "Running") {
         Start-Sleep -Milliseconds 250
     }
 }
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "ManuMCP local MCP agent; Desktop, Downloads and the configured user profile roots are exposed." -Force | Out-Null
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "ManuMCP local MCP agent; Desktop, Downloads and the complete configured computer volumes are exposed." -Force | Out-Null
 
 Start-ScheduledTask -TaskName $taskName
 $healthUri = "http://127.0.0.1:8787/healthz"
@@ -137,7 +146,7 @@ if (-not $ready) {
 Write-Output "ManuMCP instalado como tarea '$taskName'."
 Write-Output "Escritorio autorizado: $resolvedWorkspace"
 Write-Output "Descargas autorizadas: $resolvedDownloads"
-Write-Output "Perfil de usuario autorizado: $resolvedPcRoot"
+Write-Output "Raíz completa del equipo autorizada: $resolvedPcRoot"
 Write-Output "Endpoint local: http://127.0.0.1:8787/mcp"
 Write-Output "Modo seguro recomendado para ChatGPT: túnel privado por stdio."
 Write-Output "Logs: $(Join-Path $appDataDirectory 'logs\agent.log')"
