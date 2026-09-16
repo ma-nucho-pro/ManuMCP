@@ -10,6 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D22.12-339933.svg" alt="Node.js 22.12 o posterior"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-stdio%20%7C%20HTTP-7c3aed.svg" alt="Model Context Protocol"></a>
+  <a href="https://m8ven.ai/mcp/ma-nucho-pro-manumcp-1kbdcq"><img src="https://m8ven.ai/badge/mcp/ma-nucho-pro-manumcp-1kbdcq" alt="M8ven Score"></a>
 </p>
 
 > [!IMPORTANT]
