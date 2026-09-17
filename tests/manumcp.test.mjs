@@ -148,6 +148,38 @@ test('ManuMCP serves authenticated MCP over loopback and keeps file access insid
         idempotentHint: false,
         openWorldHint: true,
     });
+    const expectedOpenWorldHints = new Map([
+        ['get_device_health', false],
+        ['list_storage_volumes', false],
+        ['get_storage_volumes', false],
+        ['list_workspace', false],
+        ['read_workspace_file', false],
+        ['search_workspace', false],
+        ['create_workspace_directory', false],
+        ['create_workspace_file', false],
+        ['replace_workspace_text', false],
+        ['apply_workspace_patch', false],
+        ['run_command', true],
+        ['launch_application', true],
+        ['open_item', true],
+        ['open_url', true],
+        ['list_processes', false],
+        ['terminate_process', false],
+        ['list_windows', false],
+        ['focus_window', false],
+        ['close_window', false],
+        ['get_screen_info', false],
+        ['capture_screen', false],
+        ['get_cursor_position', false],
+        ['control_mouse', true],
+        ['type_text', true],
+        ['press_hotkey', true],
+    ]);
+    assert.equal(expectedOpenWorldHints.size, tools.result.tools.length);
+    for (const tool of tools.result.tools) {
+        assert.equal(typeof tool.annotations?.openWorldHint, 'boolean', `${tool.name} must declare openWorldHint`);
+        assert.equal(tool.annotations.openWorldHint, expectedOpenWorldHints.get(tool.name), `${tool.name} openWorldHint`);
+    }
 
     const desktopAliasReply = await callTool(port, accessToken, 3, 'list_workspace', { root: 'desktop', path: 'desktop:/' });
     assert.equal(desktopAliasReply.result.isError, undefined);

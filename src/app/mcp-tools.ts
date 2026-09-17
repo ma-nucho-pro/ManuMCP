@@ -288,7 +288,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         title: "ManuMCP health",
         description: "Comprueba si ManuMCP está activo y muestra el sistema, el inventario de unidades, los volúmenes autorizados y el modo de control.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, async () => {
         const storage = await services.system.listStorageVolumes();
         return {
@@ -310,14 +310,14 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         title: "List computer storage volumes",
         description: "Lista las unidades o volúmenes disponibles y el alias que ManuMCP puede usar. En Windows se descubren C:, D:, F… cuando están montadas; en macOS pc:/ cubre el sistema y /Volumes contiene discos externos.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, () => services.system.listStorageVolumes()));
 
     server.registerTool("get_storage_volumes", {
         title: "Get computer storage volumes",
         description: "Alias de compatibilidad para clientes que no muestran list_storage_volumes. Lista las unidades o volúmenes disponibles y el alias que ManuMCP puede usar.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, () => services.system.listStorageVolumes()));
 
     server.registerTool("list_workspace", {
@@ -330,7 +330,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             maxEntries: z.number().int().min(1).max(500).default(100),
             includeHidden: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (args, extra) => guarded(services, extra, async () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         const start = await services.authorizer.authorizeExisting(target.path, {
@@ -370,7 +370,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             endLine: z.number().int().min(1).optional(),
             maxBytes: z.number().int().min(1).max(MAX_READ_BYTES).default(64 * 1024),
         },
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (args, extra) => guarded(services, extra, async () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         const file = await services.authorizer.authorizeExisting(target.path, {
@@ -403,7 +403,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             afterLine: z.number().int().min(1).optional(),
             afterColumn: z.number().int().min(1).optional(),
         },
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (args, extra) => guarded(services, extra, async () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         const start = await services.authorizer.authorizeExisting(target.path, {
@@ -441,7 +441,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         return services.writer.createDirectory({
@@ -462,7 +462,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         return services.writer.createTextFile({
@@ -487,7 +487,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         return services.writer.replaceTextRange({
@@ -513,7 +513,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => writeCall(services, extra, args.confirmationToken, args.confirmed, () => {
         const target = normalizedTarget(args.path, args.root, services.config);
         return services.writer.applyPatch({
@@ -537,7 +537,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => {
         try {
             const cwd = await controlCwd(services, args.cwd);
@@ -569,7 +569,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => {
         try {
             const cwd = await controlCwd(services, args.cwd);
@@ -596,7 +596,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => {
         try {
             const target = await existingControlTarget(services, args.path);
@@ -627,7 +627,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             filter: z.string().max(256).optional(),
             maxEntries: z.number().int().min(1).max(500).default(100),
         },
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (args, extra) => guarded(services, extra, () => services.system.listProcesses(args.filter, args.maxEntries)));
 
     server.registerTool("terminate_process", {
@@ -639,7 +639,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => controlAction(services, extra, "terminate_process", {
         pid: args.pid,
         force: args.force,
@@ -649,7 +649,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         title: "List visible windows",
         description: "Lista ventanas visibles de Windows o macOS con título, identificador y PID, e indica cuál está activa. No modifica nada.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, () => services.system.listWindows()));
 
     server.registerTool("focus_window", {
@@ -660,7 +660,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => controlAction(services, extra, "focus_window", {
         handle: args.handle,
     }, `Activar la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.focusWindow(args.handle)));
@@ -673,7 +673,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     }, async (args, extra) => controlAction(services, extra, "close_window", {
         handle: args.handle,
     }, `Solicitar el cierre normal de la ventana ${args.handle}.`, args.confirmationToken, args.confirmed, () => services.system.closeWindow(args.handle)));
@@ -682,7 +682,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         title: "List computer screens",
         description: "Consulta las pantallas de Windows o macOS y sus coordenadas para dirigir acciones de interfaz. No modifica nada.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, () => services.system.getScreenInfo()));
 
     server.registerTool("capture_screen", {
@@ -692,7 +692,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             screenIndex: z.number().int().min(0).max(16).optional(),
             allScreens: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (args, extra) => guardedContent(services, extra, async () => {
         const capture = await services.system.captureScreen(args.screenIndex, args.allScreens);
         return [
@@ -705,7 +705,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
         title: "Get mouse position",
         description: "Devuelve la posición actual del cursor en coordenadas de pantalla. No modifica nada.",
         inputSchema: {},
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (_args, extra) => guarded(services, extra, () => services.system.getCursorPosition()));
 
     server.registerTool("control_mouse", {
@@ -721,7 +721,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => controlAction(services, extra, "control_mouse", {
         action: args.action,
         x: args.x,
@@ -739,7 +739,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => controlAction(services, extra, "type_text", {
         text: args.text,
     }, `Escribir ${[...args.text].length} carácter(es) en la ventana activa.`, args.confirmationToken, args.confirmed, () => services.system.typeText(args.text)));
@@ -752,7 +752,7 @@ export function registerManuMcpTools(server: McpServer, services: ManuMcpService
             confirmationToken: confirmationSchema,
             confirmed: z.boolean().default(false),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (args, extra) => {
         try {
             const codes = keyCodes(args.keys);
