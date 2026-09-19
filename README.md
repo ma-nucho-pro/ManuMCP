@@ -54,6 +54,10 @@ ChatGPT web / Codex / Claude Code / Gemini CLI / Cursor / otro cliente MCP
      pc:/, pc-d:/, workspace:/   ventanas, pantalla, ratón, teclado
 ~~~
 
+<p align="center">
+  <img src="docs/assets/manumcp-architecture.svg" alt="Diagrama de arquitectura: clientes MCP conectan con el agente local ManuMCP y pasan por confirmación antes de acceder a archivos, comandos o escritorio gráfico" width="100%">
+</p>
+
 En Windows, el instalador registra `ManuMCP Agent` en el Programador de tareas. En macOS instala un `LaunchAgent`; en Linux intenta instalar un servicio systemd de usuario y, si no está disponible, mantiene un proceso de usuario con reinicio manual. El agente se inicia cuando la sesión del usuario está disponible.
 
 Para que ChatGPT web llegue a ese agente desde fuera de la red local hace falta mantener activo un túnel saliente. ManuMCP incluye helpers para el Secure MCP Tunnel de OpenAI y para stdio; la credencial del túnel es específica de tu cuenta y nunca se inventa ni se publica en este repositorio.

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitectura de ManuMCP</title>
+  <desc id="desc">Clientes MCP conectan con un agente local que expone archivos, comandos y control gráfico mediante una capa de vista previa y confirmación.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="1" stop-color="#102b3e"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b5364"/>
+      <stop offset="1" stop-color="#15364c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity=".32"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#76e4f7"/>
+    </marker>
+    <marker id="arrowWarm" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#f7b267"/>
+    </marker>
+    <style>
+      .ui { font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .title { font-size: 42px; font-weight: 750; fill: #f6fbff; }
+      .subtitle { font-size: 20px; fill: #a9c7d4; }
+      .label { font-size: 24px; font-weight: 700; fill: #f6fbff; }
+      .body { font-size: 18px; fill: #b8d2dc; }
+      .small { font-size: 16px; fill: #9bb9c6; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 17px; fill: #8be9fd; }
+    </style>
+  </defs>
+  <rect width="1600" height="900" rx="36" fill="url(#bg)"/>
+  <circle cx="1460" cy="80" r="230" fill="#1d7886" opacity=".12"/>
+  <circle cx="120" cy="820" r="270" fill="#276b88" opacity=".10"/>
+
+  <g class="ui">
+    <text x="90" y="92" class="title">ManuMCP · agente local MCP</text>
+    <text x="90" y="130" class="subtitle">Un cliente de IA → un proceso local → recursos del equipo con límites explícitos</text>
+
+    <g filter="url(#shadow)">
+      <rect x="90" y="188" width="420" height="116" rx="22" fill="#12263a" stroke="#3b7188" stroke-width="2"/>
+      <rect x="590" y="188" width="420" height="116" rx="22" fill="#12263a" stroke="#3b7188" stroke-width="2"/>
+      <rect x="1090" y="188" width="420" height="116" rx="22" fill="#12263a" stroke="#3b7188" stroke-width="2"/>
+    </g>
+    <text x="300" y="235" class="label" text-anchor="middle">ChatGPT web</text>
+    <text x="300" y="270" class="body" text-anchor="middle">Secure MCP Tunnel</text>
+    <text x="800" y="235" class="label" text-anchor="middle">Codex · Claude · Cursor</text>
+    <text x="800" y="270" class="body" text-anchor="middle">transporte stdio local</text>
+    <text x="1300" y="235" class="label" text-anchor="middle">Gemini CLI · otros</text>
+    <text x="1300" y="270" class="body" text-anchor="middle">cliente MCP compatible</text>
+
+    <path d="M300 304 V350 H770" fill="none" stroke="#76e4f7" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M800 304 V350" fill="none" stroke="#76e4f7" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M1300 304 V350 H830" fill="none" stroke="#76e4f7" stroke-width="4" marker-end="url(#arrow)"/>
+
+    <g filter="url(#shadow)">
+      <rect x="470" y="350" width="660" height="168" rx="28" fill="url(#agent)" stroke="#76e4f7" stroke-width="3"/>
+    </g>
+    <text x="800" y="410" class="label" text-anchor="middle">ManuMCP Agent</text>
+    <text x="800" y="446" class="body" text-anchor="middle">stdio local · HTTP en loopback · túnel saliente</text>
+    <text x="800" y="482" class="mono" text-anchor="middle">tools/list · get_device_health · lectura de pc:/</text>
+
+    <path d="M800 518 V574" fill="none" stroke="#f7b267" stroke-width="5" marker-end="url(#arrowWarm)"/>
+    <g filter="url(#shadow)">
+      <rect x="515" y="574" width="570" height="96" rx="22" fill="#432d28" stroke="#f7b267" stroke-width="3"/>
+    </g>
+    <text x="800" y="613" class="label" text-anchor="middle">Vista previa + confirmación</text>
+    <text x="800" y="645" class="body" text-anchor="middle">acciones mutantes · token de un solo uso</text>
+
+    <path d="M650 670 V728 H390" fill="none" stroke="#76e4f7" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M950 670 V728 H1210" fill="none" stroke="#76e4f7" stroke-width="4" marker-end="url(#arrow)"/>
+    <g filter="url(#shadow)">
+      <rect x="90" y="728" width="600" height="112" rx="22" fill="#12263a" stroke="#3b7188" stroke-width="2"/>
+      <rect x="910" y="728" width="600" height="112" rx="22" fill="#12263a" stroke="#3b7188" stroke-width="2"/>
+    </g>
+    <text x="390" y="770" class="label" text-anchor="middle">Archivos y comandos</text>
+    <text x="390" y="801" class="mono" text-anchor="middle">pc:/ · workspace:/ · downloads:/</text>
+    <text x="1210" y="770" class="label" text-anchor="middle">Escritorio gráfico</text>
+    <text x="1210" y="801" class="body" text-anchor="middle">ventanas · pantalla · ratón · teclado</text>
+
+    <text x="800" y="875" class="small" text-anchor="middle">La capa de archivos bloquea credenciales, tokens, .env y rutas sensibles; el shell confirmado sigue las capacidades del usuario.</text>
+  </g>
+</svg>
