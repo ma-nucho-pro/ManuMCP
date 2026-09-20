@@ -11,6 +11,7 @@ const scripts = Object.fromEntries([
   'start-windows.ps1',
   'install-tunnel-windows.ps1',
   'start-tunnel-windows.ps1',
+  'run-openai-tunnel.ps1',
   'stdio-entrypoint.ps1',
   'uninstall-windows.ps1',
   'windows-lifecycle.ps1',
@@ -52,6 +53,14 @@ test('Tunnel readiness is stricter than local process availability', () => {
   assert.match(scripts['install-tunnel-windows.ps1'], /readyz\.ok/u);
   assert.match(scripts['install-tunnel-windows.ps1'], /control_plane_poll\.ok/u);
   assert.match(scripts['windows-lifecycle.ps1'], /@\('http', 'https'\)/u);
+});
+
+test('Tunnel setup persists an explicit organization context instead of reusing a stale one', () => {
+  assert.match(scripts['run-openai-tunnel.ps1'], /CONTROL_PLANE_ORGANIZATION_ID/u);
+  assert.match(scripts['run-openai-tunnel.ps1'], /organization_id/u);
+  assert.match(scripts['run-openai-tunnel.ps1'], /OrganizationId/u);
+  assert.match(scripts['install-tunnel-windows.ps1'], /-OrganizationId \$OrganizationId/u);
+  assert.match(scripts['install-tunnel-windows.ps1'], /organizationId = \$OrganizationId/u);
 });
 
 test('Windows scripts declare PowerShell 5.1 compatibility', () => {

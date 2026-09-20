@@ -6,7 +6,8 @@ param(
     [string]$TunnelId,
     [string]$Profile = "manumcp-final",
     [string]$ClientPath,
-    [string]$HealthUrl
+    [string]$HealthUrl,
+    [string]$OrganizationId = $env:CONTROL_PLANE_ORGANIZATION_ID
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,9 @@ $helperPath = Join-Path $PSScriptRoot "windows-lifecycle.ps1"
 . $helperPath
 if ([string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_API_KEY) -or $env:CONTROL_PLANE_API_KEY -notmatch '^sk-[A-Za-z0-9_-]{20,}$') {
     throw "Define CONTROL_PLANE_API_KEY solo en esta sesión antes de instalar el arranque del túnel. No lo guardes en el repositorio."
+}
+if (-not [string]::IsNullOrWhiteSpace($OrganizationId) -and $OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
+    throw "OrganizationId debe tener formato org-... y pertenecer a la misma organización que el túnel y la runtime key."
 }
 if ([string]::IsNullOrWhiteSpace($ClientPath)) {
     $clientCommand = Get-Command tunnel-client -ErrorAction SilentlyContinue
@@ -98,7 +102,7 @@ function Stop-ExistingTunnel {
         $ownerName = if ($null -ne $owner) { [string]$owner.User } else { "" }
         $sameUser = $ownerName -ieq $env:USERNAME
         $sameExecutable = $null -ne $processInfo -and (Get-ManuMcpNormalizedPath ([string]$processInfo.ExecutablePath)) -eq (Get-ManuMcpNormalizedPath $ClientPath)
-        $sameProfile = $null -ne $processInfo -and ([string]$processInfo.CommandLine -match [regex]::Escape($Profile)) -and ([string]$processInfo.CommandLine -match [regex]::Escape($ProfileDir))
+        $sameProfile = $null -ne $processInfo -and ([string]$processInfo.CommandLine -match [regex]::Escape($Profile)) -and ([string]$processInfo.CommandLine -match [regex]::Escape($profileDirectory))
         if ($sameUser -and $sameExecutable -and $sameProfile) {
             Stop-Process -Id ([int]$ownerPid) -Force -ErrorAction Stop
         }
@@ -132,7 +136,7 @@ try {
 
     # Configure/doctor uses the API key only in this process. The encrypted
     # DPAPI blob is reused byte-for-byte when it already exists.
-    & (Join-Path $PSScriptRoot "run-openai-tunnel.ps1") -TunnelId $TunnelId -Profile $Profile -ClientPath $ClientPath -ProfileDir $profileDirectory -ConfigureOnly
+    & (Join-Path $PSScriptRoot "run-openai-tunnel.ps1") -TunnelId $TunnelId -Profile $Profile -ClientPath $ClientPath -ProfileDir $profileDirectory -OrganizationId $OrganizationId -ConfigureOnly
     if ($LASTEXITCODE -ne 0) { throw "No se pudo preparar el perfil del túnel." }
     if (-not (Test-Path -LiteralPath $profilePath -PathType Leaf)) { throw "No se creó el perfil del túnel: $profilePath" }
     $profileText = Get-Content -LiteralPath $profilePath -Raw
@@ -165,6 +169,7 @@ try {
         component = "Tunnel"
         tunnelId = $TunnelId
         profile = $Profile
+        organizationId = $OrganizationId
         clientPath = (Get-ManuMcpNormalizedPath $ClientPath)
         clientSha256 = (Get-ManuMcpFileSha256 $ClientPath)
         profileDir = (Get-ManuMcpNormalizedPath $profileDirectory)
@@ -215,7 +220,7 @@ try {
     if (-not $ready) {
         throw "El túnel quedó instalado localmente, pero no alcanzó cuatro comprobaciones de salud/control plane. Último estado: $healthError. Revisa $(Join-Path $appDataDirectory 'logs\tunnel.log')."
     }
-    Write-ManuMcpInstallState -DataRoot $appDataDirectory -Component Tunnel -OperationId $operationId -Phase Started -Extra @{ taskName = $taskName; taskUser = $userId; tunnelId = $TunnelId; profile = $Profile; healthUrl = $HealthUrl; clientVersion = "v0.0.14" }
+    Write-ManuMcpInstallState -DataRoot $appDataDirectory -Component Tunnel -OperationId $operationId -Phase Started -Extra @{ taskName = $taskName; taskUser = $userId; tunnelId = $TunnelId; profile = $Profile; organizationId = $OrganizationId; healthUrl = $HealthUrl; clientVersion = "v0.0.14" }
 }
 finally {
     if ($launchHeld) { Exit-ManuMcpMutex -Mutex $launchMutex }
@@ -224,6 +229,7 @@ finally {
 Write-Output "Arranque automático del túnel instalado como tarea '$taskName' bajo $userId."
 Write-Output "Túnel: $TunnelId"
 Write-Output "Perfil: $Profile"
+if (-not [string]::IsNullOrWhiteSpace($OrganizationId)) { Write-Output "Organización: $OrganizationId" }
 Write-Output "HealthUrl local: $HealthUrl"
 Write-Output "Credencial: conservada/protegida con Windows DPAPI para el usuario actual."
 Write-Output "La tarea usa supervisor propio y no añade reinicios duplicados."
