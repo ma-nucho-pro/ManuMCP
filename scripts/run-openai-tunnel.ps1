@@ -1,15 +1,22 @@
+#requires -Version 5.1
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$TunnelId,
     [string]$Profile = "manumcp-local",
     [string]$Workspace,
-    [string]$ClientPath = "tunnel-client"
+    [string]$ClientPath = "tunnel-client",
+    [string]$ProfileDir = (Join-Path ([Environment]::GetFolderPath("ApplicationData")) "tunnel-client"),
+    [string]$OrganizationId = $env:CONTROL_PLANE_ORGANIZATION_ID,
+    [switch]$ConfigureOnly
 )
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_API_KEY)) {
     throw "Define CONTROL_PLANE_API_KEY solo en esta sesión antes de iniciar el túnel. No lo guardes en el repositorio."
+}
+if (-not [string]::IsNullOrWhiteSpace($OrganizationId) -and $OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
+    throw "OrganizationId debe tener formato org-... y pertenecer a la misma organización que el túnel y la runtime key."
 }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -73,17 +80,40 @@ if (Test-Path -LiteralPath $stdioWrapperPath -PathType Leaf) {
     # keep Windows paths intact when the command is launched by its Go runtime.
     $commandShellPath = $systemPowerShell -replace '\\', '/'
     $commandWrapperPath = $stdioWrapperPath -replace '\\', '/'
-    $mcpCommand = "$commandShellPath -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $commandWrapperPath"
+    $mcpCommand = '"' + $commandShellPath + '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $commandWrapperPath + '"'
 }
 else {
-    $mcpCommand = "node $entryPoint --stdio"
+    $mcpCommand = '"' + ($node -replace '\\', '/') + '" "' + ($entryPoint -replace '\\', '/') + '" --stdio'
 }
 
-& $clientExecutable init --sample sample_mcp_stdio_local --profile $Profile --tunnel-id $TunnelId --mcp-command $mcpCommand
+$existingProfile = Join-Path $ProfileDir "$Profile.yaml"
+if (Test-Path -LiteralPath $existingProfile -PathType Leaf) {
+    if ((Get-Content -LiteralPath $existingProfile -Raw) -notmatch [regex]::Escape($TunnelId)) {
+        throw "El perfil existente pertenece a otro túnel. Elige un nombre de perfil distinto."
+    }
+}
+else {
+& $clientExecutable init --profile-dir $ProfileDir --sample sample_mcp_stdio_local --profile $Profile --tunnel-id $TunnelId --mcp-command $mcpCommand
 if ($LASTEXITCODE -ne 0) { throw "tunnel-client init terminó con código $LASTEXITCODE." }
-& $clientExecutable doctor --profile $Profile --explain
+}
+
+if (-not [string]::IsNullOrWhiteSpace($OrganizationId)) {
+    $profileText = Get-Content -LiteralPath $existingProfile -Raw
+    $organizationLine = '  organization_id: "' + $OrganizationId + '"'
+    if ($profileText -match '(?m)^[ \t]*organization_id:[ \t]*') {
+        $updatedProfileText = [regex]::Replace($profileText, '(?m)^[ \t]*organization_id:[ \t]*[^\r\n#]*(?:#.*)?$', $organizationLine)
+    }
+    else {
+        $updatedProfileText = [regex]::Replace($profileText, '(?m)^(  base_url:\s*[^\r\n]*\r?\n)', ('$1' + $organizationLine + [Environment]::NewLine), 1)
+    }
+    if ($updatedProfileText -ne $profileText) {
+        [IO.File]::WriteAllText($existingProfile, $updatedProfileText, (New-Object System.Text.UTF8Encoding($false)))
+    }
+}
+& $clientExecutable doctor --profile-dir $ProfileDir --profile $Profile --explain
 if ($LASTEXITCODE -ne 0) { throw "tunnel-client doctor terminó con código $LASTEXITCODE." }
 Write-Output "ManuMCP quedó preparado para el túnel '$TunnelId'."
 Write-Output "Mantén este proceso activo para que ChatGPT pueda descubrir y llamar las herramientas."
-& $clientExecutable run --profile $Profile
+if ($ConfigureOnly) { return }
+& $clientExecutable run --profile-dir $ProfileDir --profile $Profile
 if ($LASTEXITCODE -ne 0) { throw "tunnel-client run terminó con código $LASTEXITCODE." }

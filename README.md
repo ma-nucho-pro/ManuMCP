@@ -339,7 +339,13 @@ $env:CONTROL_PLANE_API_KEY = "sk-..."
 .\scripts\run-openai-tunnel.ps1 -TunnelId "tunnel_..."
 ~~~
 
-El helper ejecuta `init`, `doctor` y `run`. Para instalar el arranque automático del túnel:
+Si el túnel exige un contexto de organización activo, la runtime key y el túnel deben pertenecer a la misma organización. Define el identificador que muestra Platform Tunnels durante la preparación; el helper lo persiste en el perfil local para que el arranque automático no dependa de otra instalación:
+
+~~~powershell
+$env:CONTROL_PLANE_ORGANIZATION_ID = "org-..."
+~~~
+
+Primero crea o verifica el túnel en [OpenAI Platform Tunnels](https://platform.openai.com/settings/organization/tunnels). El helper ejecuta `init`, `doctor` y `run`. Para instalar el arranque automático del túnel:
 
 ~~~powershell
 $env:CONTROL_PLANE_API_KEY = "sk-..."
