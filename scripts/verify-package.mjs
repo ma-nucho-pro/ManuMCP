@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
-const approvedRoots=['src/','dist/','tests/','examples/','scripts/','.github/workflows/'];
+const approvedRoots=['src/','dist/','tests/','examples/','scripts/','docs/assets/','.github/workflows/'];
 const approvedFiles=['README.md','CHANGELOG.md','.gitignore','LICENSE','THIRD_PARTY_NOTICES','dependency-licenses.json','package.json','package-lock.json','tsconfig.json'];
 const tracked=execFileSync('git',['ls-files'],{encoding:'utf8'}).trim().split('\n');
 for(const file of tracked){
