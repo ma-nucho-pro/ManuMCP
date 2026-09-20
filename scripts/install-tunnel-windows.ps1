@@ -16,7 +16,10 @@ $helperPath = Join-Path $PSScriptRoot "windows-lifecycle.ps1"
 if ([string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_API_KEY) -or $env:CONTROL_PLANE_API_KEY -notmatch '^sk-[A-Za-z0-9_-]{20,}$') {
     throw "Define CONTROL_PLANE_API_KEY solo en esta sesión antes de instalar el arranque del túnel. No lo guardes en el repositorio."
 }
-if (-not [string]::IsNullOrWhiteSpace($OrganizationId) -and $OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
+if ([string]::IsNullOrWhiteSpace($OrganizationId)) {
+    throw "Define CONTROL_PLANE_ORGANIZATION_ID con la organización del túnel y de la runtime key antes de instalar el arranque del túnel."
+}
+if ($OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
     throw "OrganizationId debe tener formato org-... y pertenecer a la misma organización que el túnel y la runtime key."
 }
 if ([string]::IsNullOrWhiteSpace($ClientPath)) {

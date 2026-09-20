@@ -15,7 +15,10 @@ $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_API_KEY)) {
     throw "Define CONTROL_PLANE_API_KEY solo en esta sesión antes de iniciar el túnel. No lo guardes en el repositorio."
 }
-if (-not [string]::IsNullOrWhiteSpace($OrganizationId) -and $OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
+if ([string]::IsNullOrWhiteSpace($OrganizationId)) {
+    throw "Define CONTROL_PLANE_ORGANIZATION_ID con la organización del túnel y de la runtime key antes de iniciar el túnel."
+}
+if ($OrganizationId -notmatch '^org-[A-Za-z0-9_-]+$') {
     throw "OrganizationId debe tener formato org-... y pertenecer a la misma organización que el túnel y la runtime key."
 }
 

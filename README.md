@@ -332,28 +332,25 @@ La guía oficial del túnel es:
 
 ### Windows
 
-Define la runtime key solo en la sesión actual y sustituye el identificador real del túnel:
+Define en la sesión actual la runtime key, la organización que aparece en Platform Tunnels y sustituye el identificador real del túnel:
 
 ~~~powershell
 $env:CONTROL_PLANE_API_KEY = "sk-..."
-.\scripts\run-openai-tunnel.ps1 -TunnelId "tunnel_..."
-~~~
-
-Si el túnel exige un contexto de organización activo, la runtime key y el túnel deben pertenecer a la misma organización. Define el identificador que muestra Platform Tunnels durante la preparación; el helper lo persiste en el perfil local para que el arranque automático no dependa de otra instalación:
-
-~~~powershell
 $env:CONTROL_PLANE_ORGANIZATION_ID = "org-..."
+.\scripts\run-openai-tunnel.ps1 -TunnelId "tunnel_..."
 ~~~
 
 Primero crea o verifica el túnel en [OpenAI Platform Tunnels](https://platform.openai.com/settings/organization/tunnels). El helper ejecuta `init`, `doctor` y `run`. Para instalar el arranque automático del túnel:
 
 ~~~powershell
 $env:CONTROL_PLANE_API_KEY = "sk-..."
+$env:CONTROL_PLANE_ORGANIZATION_ID = "org-..."
 .\scripts\install-tunnel-windows.ps1 -TunnelId "tunnel_..." -ClientPath "C:\ruta\a\tunnel-client.exe"
 $env:CONTROL_PLANE_API_KEY = $null
+$env:CONTROL_PLANE_ORGANIZATION_ID = $null
 ~~~
 
-La clave queda protegida con DPAPI para el usuario actual. La tarea `ManuMCP Tunnel` solo puede ejecutarse cuando Windows puede descifrarla, hay una sesión válida y existe red.
+La organización es obligatoria durante la primera configuración para impedir que un perfil antiguo o ambiguo termine en un `404` del túnel. El helper la persiste junto con el perfil y la clave queda protegida con DPAPI para el usuario actual. La tarea `ManuMCP Tunnel` solo puede ejecutarse cuando Windows puede descifrarla, hay una sesión válida y existe red.
 
 ### macOS/Linux
 

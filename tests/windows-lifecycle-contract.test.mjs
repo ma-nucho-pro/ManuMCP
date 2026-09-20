@@ -57,8 +57,10 @@ test('Tunnel readiness is stricter than local process availability', () => {
 
 test('Tunnel setup persists an explicit organization context instead of reusing a stale one', () => {
   assert.match(scripts['run-openai-tunnel.ps1'], /CONTROL_PLANE_ORGANIZATION_ID/u);
+  assert.match(scripts['run-openai-tunnel.ps1'], /Define CONTROL_PLANE_ORGANIZATION_ID/u);
   assert.match(scripts['run-openai-tunnel.ps1'], /organization_id/u);
   assert.match(scripts['run-openai-tunnel.ps1'], /OrganizationId/u);
+  assert.match(scripts['install-tunnel-windows.ps1'], /Define CONTROL_PLANE_ORGANIZATION_ID/u);
   assert.match(scripts['install-tunnel-windows.ps1'], /-OrganizationId \$OrganizationId/u);
   assert.match(scripts['install-tunnel-windows.ps1'], /organizationId = \$OrganizationId/u);
 });
