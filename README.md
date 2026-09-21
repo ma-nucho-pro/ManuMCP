@@ -1,3 +1,9 @@
+<!-- manucho-readme-banner:start -->
+<p align="center">
+  <img src="assets/readme/banner.svg" alt="MANUMCP project overview" width="100%">
+</p>
+<!-- manucho-readme-banner:end -->
+
 # ManuMCP
 
 <p align="center">
