@@ -4,6 +4,10 @@
 </p>
 <!-- manucho-readme-banner:end -->
 
+<p align="center">
+  <img src="assets/readme/project-logo.svg" width="240" alt="ManuMCP 3D project logo">
+</p>
+
 # ManuMCP
 
 <p align="center">
